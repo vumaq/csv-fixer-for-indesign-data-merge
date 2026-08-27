@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSV Fixer for Data Merge</title>
+<meta name="description" content="Clean up a CSV for InDesign Data Merge: strip BOM, normalize line endings, and generate a unique ID column. Runs entirely in your browser.">
+<meta name="theme-color" content="#ffffff">
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/petite-vue/0.4.1/petite-vue.iife.js" defer></script>
+
+<style>
+  :root{
+    --bg: #ffffff;
+    --bg-soft: #f6f7f8;
+    --ink: #1a1a1a;
+    --ink-soft: #666666;
+    --ink-faint: #999999;
+    --line: #e2e2e2;
+    --accent: #2563eb;
+    --accent-soft: #eaf0fe;
+    --ok: #16794f;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: ui-monospace, 'SF Mono', Consolas, monospace;
+  }
+  *{ box-sizing: border-box; }
+  html, body{ margin: 0; }
+  body{ background: var(--bg); color: var(--ink); font-family: var(--font); }
+
+  header{ border-bottom: 1px solid var(--line); }
+  .header-inner{
+    max-width: 78rem;
+    margin: 0 auto;
+    padding: 1.1rem 1.5rem;
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+  }
+  header h1{ font-size: 1.1rem; font-weight: 600; margin: 0; }
+  header .sub{ font-size: 0.85rem; color: var(--ink-faint); }
+
+  .notice{
+    background: var(--bg-soft);
+    border-bottom: 1px solid var(--line);
+    font-size: 0.82rem;
+    color: var(--ink-soft);
+  }
+  .notice-inner{
+    max-width: 78rem;
+    margin: 0 auto;
+    padding: 0.6rem 1.5rem;
+  }
+
+  main{ max-width: 78rem; margin: 0 auto; padding: 1.5rem 1.5rem 6rem; }
+
+  .layout{
+    display: grid;
+    grid-template-columns: 17rem 1fr;
+    gap: 1.5rem;
+    align-items: start;
+  }
+  @media (max-width: 55em){ .layout{ grid-template-columns: 1fr; } }
+
+  .panel{
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--bg);
+  }
+  .panel-head{
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--line);
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  .panel-body{ padding: 1rem; }
+
+  .opt{
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--bg-soft);
+    cursor: pointer;
+  }
+  .opt:last-child{ border-bottom: none; }
+  .opt input[type="checkbox"]{
+    margin-top: 0.2rem;
+    width: 1rem; height: 1rem;
+    accent-color: var(--accent);
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+  .opt-text strong{ display: block; font-size: 0.85rem; font-weight: 600; }
+  .opt-text span{ display: block; font-size: 0.78rem; color: var(--ink-soft); line-height: 1.4; margin-top: 0.1rem; }
+
+  .subfields{
+    margin: 0.6rem 0 0.75rem 1.6rem;
+    padding-left: 0.75rem;
+    border-left: 2px solid var(--line);
+    display: grid;
+    gap: 0.6rem;
+  }
+  .field-row{ display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+  .field-row label{ font-size: 0.78rem; color: var(--ink-soft); }
+  .field-label{
+    display: block;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--ink-soft);
+    margin-bottom: 0.25rem;
+  }
+  select, .text-input, input[type="number"]{
+    width: 100%;
+    height: 2.15rem;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    font-family: var(--font);
+    font-size: 0.85rem;
+    padding: 0 0.5rem;
+    color: var(--ink);
+  }
+  input[type="number"]{ width: 4.5rem; }
+  select:focus, .text-input:focus, input[type="number"]:focus{
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  /* ---- Right column: drop zone / CSV preview, grows with content ---- */
+  .drop-area{
+    border: 1.5px dashed var(--line);
+    border-radius: 8px;
+    min-height: 22rem;
+    position: relative;
+    transition: border-color .12s, background .12s;
+    background-color: var(--bg);
+    background-image:
+      linear-gradient(45deg, var(--bg-soft) 25%, transparent 25%),
+      linear-gradient(-45deg, var(--bg-soft) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, var(--bg-soft) 75%),
+      linear-gradient(-45deg, transparent 75%, var(--bg-soft) 75%);
+    background-size: 22px 22px;
+    background-position: 0 0, 0 11px, 11px -11px, -11px 0;
+  }
+  .drop-area.drag{ border-color: var(--accent); background-color: var(--accent-soft); }
+  .drop-area.has-file{ border-style: solid; background-image: none; background-color: var(--bg); }
+  .drop-area input[type="file"]{ display: none; }
+
+  .drop-placeholder{
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 0.4rem;
+    cursor: pointer;
+    color: var(--ink-soft);
+    font-size: 0.9rem;
+    text-align: center;
+    padding: 1rem;
+  }
+  .drop-placeholder .hint{ font-size: 0.78rem; color: var(--ink-faint); }
+
+  .file-bar{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.82rem;
+  }
+  .file-bar .name{ font-weight: 600; }
+  .file-bar .meta{ color: var(--ink-faint); }
+  .file-bar button{
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-size: 0.8rem;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .diagnostics{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .badge{
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.76rem;
+    font-weight: 600;
+    border: 1px solid transparent;
+  }
+  .badge.bad{ background: #fdecea; color: #b3261e; border-color: #f3b3ac; }
+  .badge.good{ background: #e7f5ee; color: var(--ok); border-color: #b9e3cd; }
+  .badge .dot{ width: 0.4rem; height: 0.4rem; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+
+  .csv-preview{
+    margin: 0;
+    padding: 1rem;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    line-height: 1.6;
+    white-space: pre;
+    overflow-x: auto;
+    color: var(--ink);
+  }
+
+  .error-banner{
+    background: #fdecea;
+    border: 1px solid #f3b3ac;
+    color: #b3261e;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+    border-radius: 6px;
+    margin-top: 0.75rem;
+  }
+
+  /* ---- Floating download button ---- */
+  .float-download{
+    position: fixed;
+    right: 1.5rem;
+    bottom: 1.5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    height: 3rem;
+    padding: 0 1.25rem;
+    font-family: var(--font);
+    font-weight: 600;
+    font-size: 0.9rem;
+    border: none;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(37,99,235,.35);
+    transition: transform .1s, background .12s, opacity .15s, visibility .15s;
+  }
+  .float-download:hover{ background: #1d4fd1; }
+  .float-download:active{ transform: translateY(1px); }
+  .float-download.hidden{ opacity: 0; visibility: hidden; pointer-events: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <h1>CSV Fixer</h1>
+    <span class="sub">for InDesign Data Merge</span>
+  </div>
+</header>
+<div class="notice">
+  <div class="notice-inner">Strips the invisible byte-order mark, normalizes line endings to CRLF, and can generate a unique ID column. Everything runs locally in your browser &mdash; your file is never uploaded anywhere.</div>
+</div>
+
+<div id="app">
+  <main>
+    <div class="layout">
+      <!-- Fixes -->
+      <div class="panel">
+        <div class="panel-head">Fixes</div>
+        <div class="panel-body">
+          <label class="opt">
+            <input type="checkbox" :checked="stripBom" @change="stripBom = $event.target.checked; rebuild()">
+            <span class="opt-text">
+              <strong>Strip UTF-8 BOM</strong>
+              <span>Removes the hidden mark some editors add to the start of the file.</span>
+            </span>
+          </label>
+
+          <label class="opt">
+            <input type="checkbox" :checked="normalizeCrlf" @change="normalizeCrlf = $event.target.checked; applyOptions()">
+            <span class="opt-text">
+              <strong>Normalize to CRLF</strong>
+              <span>Makes every line ending Windows-style, as Data Merge expects.</span>
+            </span>
+          </label>
+
+          <label class="opt">
+            <input type="checkbox" :checked="trimBlankRows" @change="trimBlankRows = $event.target.checked; applyOptions()">
+            <span class="opt-text">
+              <strong>Drop blank rows</strong>
+              <span>Removes fully empty rows, including a trailing blank line.</span>
+            </span>
+          </label>
+
+          <label class="opt">
+            <input type="checkbox" :checked="genId" @change="genId = $event.target.checked; applyOptions()">
+            <span class="opt-text">
+              <strong>Generate unique ID column</strong>
+              <span>Replaces a column with random, non-repeating numeric IDs.</span>
+            </span>
+          </label>
+          <div class="subfields" v-if="genId">
+            <div>
+              <label class="field-label" for="id-source">Replace column</label>
+              <select id="id-source" @change="idSourceCol = $event.target.value; applyOptions()">
+                <option value="">&mdash; new column, keep existing &mdash;</option>
+                <option v-for="h in headers" :key="h" :value="h" :selected="h === idSourceCol">{{ h }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="field-label" for="id-name">New column name</label>
+              <input id="id-name" type="text" class="text-input" :value="idColName" @input="idColName = $event.target.value; applyOptions()">
+            </div>
+            <div class="field-row">
+              <label for="id-digits">Random digits</label>
+              <input id="id-digits" type="number" min="1" max="9" :value="idDigits" @input="idDigits = clampDigits($event.target.value); applyOptions()">
+            </div>
+            <label class="opt" style="padding: 0.2rem 0;">
+              <input type="checkbox" :checked="idLeadingZero" @change="idLeadingZero = $event.target.checked; applyOptions()">
+              <span class="opt-text"><strong style="font-size: 0.78rem;">Force a leading zero</strong></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Drop zone / preview -->
+      <div>
+        <div class="drop-area" :class="{drag: dragging, 'has-file': rows.length}"
+             @dragover.prevent="dragging = true"
+             @dragleave.prevent="dragging = false"
+             @drop.prevent="onDrop">
+          <template v-if="!rows.length">
+            <label class="drop-placeholder">
+              <input type="file" accept=".csv,text/csv" @change="onFilePick">
+              <div>Drop a .csv here, or click to browse</div>
+              <div class="hint">Fixes are applied automatically once loaded</div>
+            </label>
+          </template>
+          <template v-else>
+            <div class="file-bar">
+              <span class="name">{{ fileName }}</span>
+              <span class="meta">{{ rows.length }} rows &middot; {{ headers.length }} columns</span>
+              <button @click="reset">Load a different file</button>
+            </div>
+            <div class="diagnostics">
+              <span class="badge" :class="hadBom ? 'bad' : 'good'">
+                <span class="dot"></span>
+                {{ hadBom ? (stripBom ? 'BOM found — removed' : 'BOM found — not fixed') : 'No BOM' }}
+              </span>
+              <span class="badge" :class="lineEndings.mixed ? 'bad' : 'good'">
+                <span class="dot"></span>
+                {{ lineEndings.mixed
+                    ? (normalizeCrlf ? lineEndingSummary + ' — normalizing to CRLF' : lineEndingSummary + ' — not fixed')
+                    : 'Uniform CRLF' }}
+              </span>
+            </div>
+            <pre class="csv-preview">{{ csvText }}</pre>
+          </template>
+        </div>
+        <div v-if="parseError" class="error-banner">{{ parseError }}</div>
+      </div>
+    </div>
+  </main>
+
+  <button class="float-download" :class="{hidden: !rows.length}" @click="download">Download fixed CSV</button>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+
+  function parseCsv(text){
+    const rows = [];
+    let row = [], field = '', inQuotes = false;
+    for (let i = 0; i < text.length; i++){
+      const c = text[i];
+      if (inQuotes){
+        if (c === '"'){
+          if (text[i + 1] === '"'){ field += '"'; i++; }
+          else inQuotes = false;
+        } else field += c;
+      } else {
+        if (c === '"') inQuotes = true;
+        else if (c === ','){ row.push(field); field = ''; }
+        else if (c === '\n'){ row.push(field); rows.push(row); row = []; field = ''; }
+        else if (c === '\r'){ /* skip, \n handles the break */ }
+        else field += c;
+      }
+    }
+    if (field.length || row.length){ row.push(field); rows.push(row); }
+    return rows;
+  }
+
+  function csvField(v){
+    v = v == null ? '' : String(v);
+    if (/[",\n]/.test(v)) return '"' + v.replace(/"/g, '""') + '"';
+    return v;
+  }
+
+  PetiteVue.createApp({
+    fileName: '',
+    dragging: false,
+    parseError: '',
+
+    originalText: '',
+    hadBom: false,
+
+    rawHeaders: [],
+    rawRows: [],
+
+    stripBom: true,
+    normalizeCrlf: true,
+    trimBlankRows: true,
+
+    genId: false,
+    idSourceCol: '',
+    idColName: 'ID',
+    idDigits: 4,
+    idLeadingZero: true,
+
+    headers: [],
+    rows: [],
+
+    get csvText(){ return this.buildCsvText(); },
+
+    // Diagnostics reflect the ORIGINAL file, regardless of which fixes
+    // are ticked — so the badges show what's actually wrong with it.
+    get lineEndings(){
+      const text = this.originalText;
+      let crlf = 0, lf = 0, cr = 0;
+      const re = /\r\n|\r|\n/g;
+      let m;
+      while ((m = re.exec(text)) !== null){
+        if (m[0] === '\r\n') crlf++;
+        else if (m[0] === '\n') lf++;
+        else cr++;
+      }
+      return { crlf, lf, cr, mixed: (lf + cr) > 0 };
+    },
+    get lineEndingSummary(){
+      const { crlf, lf, cr } = this.lineEndings;
+      const parts = [];
+      if (crlf) parts.push(`${crlf} CRLF`);
+      if (lf) parts.push(`${lf} LF`);
+      if (cr) parts.push(`${cr} CR`);
+      return parts.join(', ');
+    },
+
+    clampDigits(v){
+      v = parseInt(v, 10);
+      if (isNaN(v)) return 4;
+      return Math.min(9, Math.max(1, v));
+    },
+
+    onDrop(e){
+      this.dragging = false;
+      const f = e.dataTransfer.files[0];
+      if (f) this.readFile(f);
+    },
+    onFilePick(e){
+      const f = e.target.files[0];
+      if (f) this.readFile(f);
+    },
+
+    reset(){
+      this.fileName = '';
+      this.originalText = '';
+      this.rawHeaders = []; this.rawRows = [];
+      this.headers = []; this.rows = [];
+      this.parseError = '';
+      this.idSourceCol = '';
+    },
+
+    readFile(file){
+      this.fileName = file.name;
+      this.parseError = '';
+      const reader = new FileReader();
+      reader.onload = () => this.loadFromArrayBuffer(reader.result);
+      reader.onerror = () => { this.parseError = 'Could not read that file.'; };
+      reader.readAsArrayBuffer(file);
+    },
+
+    // Decodes with the BOM character kept in the string (if present) so
+    // the "Strip UTF-8 BOM" checkbox has something real to toggle later —
+    // stripping happens in rebuild(), not here.
+    loadFromArrayBuffer(buf){
+      const bytes = new Uint8Array(buf);
+      let text;
+      try {
+        text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+      } catch (e) {
+        text = new TextDecoder('iso-8859-1').decode(bytes);
+      }
+      this.originalText = text;
+      this.rebuild();
+    },
+
+    // Single source of truth: always re-derive headers/rows from the
+    // untouched originalText, so unticking any fix actually reverts it.
+    rebuild(){
+      if (!this.originalText) return;
+      let text = this.originalText;
+      this.hadBom = text.charCodeAt(0) === 0xFEFF;
+      if (this.hadBom && this.stripBom) text = text.slice(1);
+
+      try {
+        const table = parseCsv(text.replace(/\r\n/g, '\n').replace(/\r/g, '\n'));
+        if (!table.length) throw new Error('empty file');
+        const headers = table[0];
+        const objRows = table.slice(1)
+          .filter(r => r.length > 1 || (r[0] || '').trim() !== '')
+          .map(r => {
+            const o = {};
+            headers.forEach((h, i) => { o[h] = r[i] !== undefined ? r[i] : ''; });
+            return o;
+          });
+        this.rawHeaders = headers;
+        this.rawRows = objRows;
+        if (!this.idSourceCol && headers.includes('Code')) this.idSourceCol = 'Code';
+        this.parseError = '';
+      } catch (e) {
+        this.parseError = 'Could not parse that as a CSV.';
+        this.rawHeaders = []; this.rawRows = [];
+        this.headers = []; this.rows = [];
+        return;
+      }
+
+      this.applyOptions();
+    },
+
+    // Applies the row/column-level options (blank rows, ID column) on
+    // top of the freshly re-parsed raw data — also always starts clean.
+    applyOptions(){
+      if (!this.rawHeaders.length) return;
+
+      let headers = this.rawHeaders.slice();
+      let rows = this.rawRows.map(r => ({ ...r }));
+
+      if (this.trimBlankRows){
+        rows = rows.filter(r => headers.some(h => (r[h] || '').trim() !== ''));
+      }
+
+      if (this.genId){
+        const targetIsExisting = !!this.idSourceCol;
+        const newCol = this.idColName || 'ID';
+        if (targetIsExisting){
+          headers = headers.map(h => h === this.idSourceCol ? newCol : h);
+        } else if (!headers.includes(newCol)){
+          headers = headers.concat([newCol]);
+        }
+        const used = new Set();
+        const digits = this.idDigits;
+        const genOne = () => {
+          let id;
+          do {
+            const body = Array.from({ length: digits }, () => Math.floor(Math.random() * 10)).join('');
+            id = (this.idLeadingZero ? '0' : '') + body;
+          } while (used.has(id));
+          used.add(id);
+          return id;
+        };
+        rows.forEach(r => {
+          if (targetIsExisting) delete r[this.idSourceCol];
+          r[newCol] = genOne();
+        });
+      }
+
+      this.headers = headers;
+      this.rows = rows;
+    },
+
+    buildCsvText(){
+      if (!this.headers.length) return '';
+      const nl = this.normalizeCrlf ? '\r\n' : '\n';
+      const lines = [this.headers.map(csvField).join(',')];
+      this.rows.forEach(r => lines.push(this.headers.map(h => csvField(r[h])).join(',')));
+      return lines.join(nl) + nl;
+    },
+
+    outFileName(){
+      const base = this.fileName ? this.fileName.replace(/\.csv$/i, '') : 'list';
+      return `${base}_fixed.csv`;
+    },
+
+    download(){
+      const text = this.buildCsvText();
+      const blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = this.outFileName();
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+
+  }).mount('#app');
+});
+</script>
+
+</body>
+</html>
