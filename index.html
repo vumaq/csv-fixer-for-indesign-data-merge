@@ -83,6 +83,8 @@
     cursor: pointer;
   }
   .opt:last-child{ border-bottom: none; }
+  .opt.disabled{ opacity: .45; cursor: not-allowed; }
+  .opt.disabled input{ cursor: not-allowed; }
   .opt input[type="checkbox"]{
     margin-top: 0.2rem;
     width: 1rem; height: 1rem;
@@ -94,6 +96,7 @@
   .opt-text span{ display: block; font-size: 0.78rem; color: var(--ink-soft); line-height: 1.4; margin-top: 0.1rem; }
 
   .subfields{
+    margin-top: 1.25rem;
     margin: 0.6rem 0 0.75rem 1.6rem;
     padding-left: 0.75rem;
     border-left: 2px solid var(--line);
@@ -200,17 +203,43 @@
   .badge.bad{ background: #fdecea; color: #b3261e; border-color: #f3b3ac; }
   .badge.good{ background: #e7f5ee; color: var(--ok); border-color: #b9e3cd; }
   .badge .dot{ width: 0.4rem; height: 0.4rem; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+  .badge.neutral{ background:#f1f1f1; color:#777; border-color:#d8d8d8; }
+  .badge .status-icon{ font-weight:700; font-size:0.9rem; line-height:1; }
 
   .csv-preview{
     margin: 0;
     padding: 1rem;
-    font-family: var(--font-mono);
-    font-size: 0.8rem;
-    line-height: 1.6;
-    white-space: pre;
+    max-width: 100%;
     overflow-x: auto;
     color: var(--ink);
   }
+
+  .csv-table{
+    border-collapse: collapse;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    min-width: max-content;
+  }
+
+  .csv-table th,
+  .csv-table td{
+    border: 1px solid var(--line);
+    padding: 0.45rem 0.65rem;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .csv-table th{
+    font-weight: 600;
+    background: var(--bg-soft);
+  }
+
+  .csv-table td{
+    font-weight: 400;
+  }
+
+  .layout > div{ min-width: 0; }
+  .drop-area{ overflow: hidden; }
 
   .error-banner{
     background: #fdecea;
@@ -267,32 +296,33 @@
       <div class="panel">
         <div class="panel-head">Fixes</div>
         <div class="panel-body">
-          <label class="opt">
-            <input type="checkbox" :checked="stripBom" @change="stripBom = $event.target.checked; rebuild()">
+          <label class="opt" :class="{disabled: !hadBom}">
+            <input type="checkbox" :disabled="!hadBom" :checked="stripBom" @change="stripBom = $event.target.checked; rebuild()">
             <span class="opt-text">
               <strong>Strip UTF-8 BOM</strong>
               <span>Removes the hidden mark some editors add to the start of the file.</span>
             </span>
           </label>
 
-          <label class="opt">
-            <input type="checkbox" :checked="normalizeCrlf" @change="normalizeCrlf = $event.target.checked; applyOptions()">
+          <label class="opt" :class="{disabled: !lineEndings.mixed}">
+            <input type="checkbox" :disabled="!lineEndings.mixed" :checked="normalizeCrlf" @change="normalizeCrlf = $event.target.checked; applyOptions()">
             <span class="opt-text">
               <strong>Normalize to CRLF</strong>
               <span>Makes every line ending Windows-style, as Data Merge expects.</span>
             </span>
           </label>
 
-          <label class="opt">
-            <input type="checkbox" :checked="trimBlankRows" @change="trimBlankRows = $event.target.checked; applyOptions()">
+          <label class="opt" :class="{disabled: blankRowCount === 0}">
+            <input type="checkbox" :disabled="blankRowCount === 0" :checked="trimBlankRows" @change="trimBlankRows = $event.target.checked; applyOptions()">
             <span class="opt-text">
               <strong>Drop blank rows</strong>
               <span>Removes fully empty rows, including a trailing blank line.</span>
             </span>
           </label>
 
-          <label class="opt">
-            <input type="checkbox" :checked="genId" @change="genId = $event.target.checked; applyOptions()">
+          <div style="height: 0.75rem"></div>
+          <label class="opt" :class="{disabled: !rows.length}">
+            <input type="checkbox" :disabled="!rows.length" :checked="genId" @change="genId = $event.target.checked; applyOptions()">
             <span class="opt-text">
               <strong>Generate unique ID column</strong>
               <span>Replaces a column with random, non-repeating numeric IDs.</span>
@@ -342,18 +372,22 @@
               <button @click="reset">Load a different file</button>
             </div>
             <div class="diagnostics">
-              <span class="badge" :class="hadBom ? 'bad' : 'good'">
-                <span class="dot"></span>
+              <span class="badge" :class="hadBom ? (stripBom ? 'good' : 'bad') : 'neutral'">
+                <span class="status-icon">{{ hadBom ? (stripBom ? '✓' : '✕') : '•' }}</span>
                 {{ hadBom ? (stripBom ? 'BOM found — removed' : 'BOM found — not fixed') : 'No BOM' }}
               </span>
-              <span class="badge" :class="lineEndings.mixed ? 'bad' : 'good'">
-                <span class="dot"></span>
+              <span class="badge" :class="lineEndings.mixed ? (normalizeCrlf ? 'good' : 'bad') : 'neutral'">
+                <span class="status-icon">{{ lineEndings.mixed ? (normalizeCrlf ? '✓' : '✕') : '•' }}</span>
                 {{ lineEndings.mixed
                     ? (normalizeCrlf ? lineEndingSummary + ' — normalizing to CRLF' : lineEndingSummary + ' — not fixed')
                     : 'Uniform CRLF' }}
               </span>
+              <span class="badge" :class="blankRowCount ? (trimBlankRows ? 'good' : 'bad') : 'neutral'">
+                <span class="status-icon">{{ blankRowCount ? (trimBlankRows ? '✓' : '✕') : '•' }}</span>
+                {{ blankRowCount ? blankRowCount + ' blank rows' + (trimBlankRows ? ' — removed' : ' — not fixed') : 'No blank rows' }}
+              </span>
             </div>
-            <pre class="csv-preview">{{ csvText }}</pre>
+            <div class="csv-preview"><table class="csv-table"><thead><tr><th v-for="h in headers" :key="h">{{ h }}</th></tr></thead><tbody><tr v-for="(r, i) in rows" :key="i"><td v-for="h in headers" :key="h">{{ r[h] }}</td></tr></tbody></table></div>
           </template>
         </div>
         <div v-if="parseError" class="error-banner">{{ parseError }}</div>
@@ -435,6 +469,11 @@ document.addEventListener('DOMContentLoaded', function(){
       }
       return { crlf, lf, cr, mixed: (lf + cr) > 0 };
     },
+    get blankRowCount(){
+      if (!this.rawRows.length || !this.rawHeaders.length) return 0;
+      return this.rawRows.filter(r => !this.rawHeaders.some(h => (r[h] || '').trim() !== '')).length;
+    },
+
     get lineEndingSummary(){
       const { crlf, lf, cr } = this.lineEndings;
       const parts = [];
@@ -551,8 +590,10 @@ document.addEventListener('DOMContentLoaded', function(){
         const genOne = () => {
           let id;
           do {
-            const body = Array.from({ length: digits }, () => Math.floor(Math.random() * 10)).join('');
-            id = (this.idLeadingZero ? '0' : '') + body;
+            let body = Array.from({ length: digits }, () => Math.floor(Math.random() * 10)).join('');
+            if (this.idLeadingZero) body = '0' + body.slice(1);
+            // Keep IDs fixed width and ensure unused trailing positions are zero filled.
+            id = body.padEnd(digits, '0').slice(0, digits);
           } while (used.has(id));
           used.add(id);
           return id;
