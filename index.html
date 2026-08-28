@@ -482,6 +482,19 @@ document.addEventListener('DOMContentLoaded', function(){
     return v;
   }
 
+  // A trim that deliberately does NOT strip U+FEFF (the BOM character).
+  // Native String.trim() treats \uFEFF as whitespace, which meant the
+  // "Trim stray whitespace" fix would silently eat a BOM the "Strip UTF-8
+  // BOM" checkbox had been unticked to preserve — the two fixes need to
+  // stay fully independent of each other.
+  const WS = /[ \t\n\r\v\f\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]/;
+  function trimWS(s){
+    let start = 0, end = s.length;
+    while (start < end && WS.test(s[start])) start++;
+    while (end > start && WS.test(s[end - 1])) end--;
+    return s.slice(start, end);
+  }
+
   PetiteVue.createApp({
     fileName: '',
     dragging: false,
@@ -537,22 +550,23 @@ document.addEventListener('DOMContentLoaded', function(){
     },
     get blankRowCount(){
       if (!this.rawRows.length || !this.rawHeaders.length) return 0;
-      return this.rawRows.filter(r => !this.rawHeaders.some(h => (r[h] || '').trim() !== '')).length;
+      return this.rawRows.filter(r => !this.rawHeaders.some(h => trimWS(r[h] || '') !== '')).length;
     },
     get rawHasWhitespaceIssue(){
-      if (this.rawHeaders.some(h => h !== h.trim())) return true;
+      if (this.rawHeaders.some(h => h !== trimWS(h))) return true;
       return this.rawRows.some(r => this.rawHeaders.some(h => {
         const v = r[h];
-        return typeof v === 'string' && v !== v.trim();
+        return typeof v === 'string' && v !== trimWS(v);
       }));
     },
     get rawBlankHeaderCount(){
-      return this.rawHeaders.filter(h => h.trim() === '').length;
+      return this.rawHeaders.filter(h => trimWS(h.charCodeAt(0) === 0xFEFF ? h.slice(1) : h) === '').length;
     },
     get rawDupHeaderNames(){
       const counts = {};
       this.rawHeaders.forEach(h => {
-        const k = h.trim();
+        const stripped = h.charCodeAt(0) === 0xFEFF ? h.slice(1) : h;
+        const k = trimWS(stripped);
         if (!k) return; // blank headers handled separately
         counts[k] = (counts[k] || 0) + 1;
       });
@@ -566,7 +580,7 @@ document.addEventListener('DOMContentLoaded', function(){
       return Object.keys(counts).filter(k => counts[k] > 1);
     },
     get finalBlankHeaderCount(){
-      return this.headers.filter(h => h.trim() === '').length;
+      return this.headers.filter(h => trimWS(h) === '').length;
     },
     get blockingIssues(){
       const issues = [];
@@ -665,7 +679,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
       // 1. Header pipeline: trim -> name blanks -> dedupe
       let headers = this.rawHeaders.slice();
-      if (this.trimWhitespace) headers = headers.map(h => h.trim());
+      if (this.trimWhitespace) headers = headers.map(h => trimWS(h));
       if (this.fixBlankHeaders) headers = headers.map((h, i) => h === '' ? `Column ${i + 1}` : h);
       if (this.fixDupHeaders){
         const seen = {};
@@ -680,7 +694,7 @@ document.addEventListener('DOMContentLoaded', function(){
         const o = {};
         this.rawHeaders.forEach((rawH, i) => {
           let v = r[rawH];
-          if (this.trimWhitespace && typeof v === 'string') v = v.trim();
+          if (this.trimWhitespace && typeof v === 'string') v = trimWS(v);
           o[headers[i]] = v;
         });
         return o;
@@ -688,7 +702,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
       // 3. Blank rows
       if (this.trimBlankRows){
-        rows = rows.filter(r => headers.some(h => (r[h] || '').trim() !== ''));
+        rows = rows.filter(r => headers.some(h => trimWS(r[h] || '') !== ''));
       }
 
       // 4. Unique ID column
