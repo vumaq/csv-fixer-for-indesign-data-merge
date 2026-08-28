@@ -67,7 +67,7 @@
     display: grid;
     grid-template-columns: 17rem 1fr;
     gap: 1.5rem;
-    align-items: stretch;
+    align-items: start;
     flex: 1;
   }
   @media (max-width: 55em){ .layout{ grid-template-columns: 1fr; } }
@@ -146,7 +146,7 @@
   }
 
   /* ---- Right column: drop zone / CSV preview, fills remaining height ---- */
-  .right-col{ display: flex; flex-direction: column; min-height: 0; }
+  .right-col{ display: flex; flex-direction: column; min-height: 0; align-self: stretch; }
   .drop-area{
     border: 1.5px dashed var(--line);
     border-radius: 8px;
@@ -441,11 +441,11 @@
         </div>
         <div v-if="parseError" class="error-banner">{{ parseError }}</div>
 
-        <div class="action-bar" v-if="rows.length">
-          <button class="btn" @click="copyToClipboard">{{ copied ? 'Copied' : 'Copy to clipboard' }}</button>
+        <div class="action-bar">
+          <button class="btn" :disabled="!canDownload" @click="copyToClipboard">{{ copied ? 'Copied' : 'Copy to clipboard' }}</button>
           <button class="btn primary" :disabled="!canDownload" @click="download">Download fixed CSV</button>
         </div>
-        <div class="blocking-note" v-if="rows.length && !canDownload">{{ blockingIssues[0] }} — InDesign won't open this cleanly until it's fixed.</div>
+
       </div>
     </div>
   </main>
@@ -585,6 +585,10 @@ document.addEventListener('DOMContentLoaded', function(){
     get blockingIssues(){
       const issues = [];
       if (this.parseError) issues.push(this.parseError);
+      if (this.hadBom && !this.stripBom) issues.push('UTF-8 BOM not removed');
+      if (this.lineEndings.mixed && !this.normalizeCrlf) issues.push(`Line endings not normalized (${this.lineEndingSummary})`);
+      if (this.blankRowCount && !this.trimBlankRows) issues.push(`${this.blankRowCount} blank row(s) not removed`);
+      if (this.rawHasWhitespaceIssue && !this.trimWhitespace) issues.push('Stray whitespace not trimmed');
       if (this.finalBlankHeaderCount) issues.push(`${this.finalBlankHeaderCount} column(s) still have no header name`);
       if (this.finalDuplicateHeaders.length) issues.push(`Duplicate column name(s): ${this.finalDuplicateHeaders.join(', ')}`);
       return issues;
@@ -766,6 +770,7 @@ document.addEventListener('DOMContentLoaded', function(){
     },
 
     async copyToClipboard(){
+      if (!this.canDownload) return;
       try {
         await navigator.clipboard.writeText(this.buildCsvText());
         this.copied = true;
