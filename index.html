@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CSV Fixer for Data Merge</title>
-<meta name="description" content="Clean up a CSV for InDesign Data Merge: strip BOM, normalize line endings, and generate a unique ID column. Runs entirely in your browser.">
+<meta name="description" content="Clean up a CSV for InDesign Data Merge: strip BOM, normalize line endings, fix header issues, and generate a unique ID column. Runs entirely in your browser.">
 <meta name="theme-color" content="#ffffff">
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/petite-vue/0.4.1/petite-vue.iife.js" defer></script>
@@ -22,9 +22,10 @@
     --ok: #16794f;
     --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     --font-mono: ui-monospace, 'SF Mono', Consolas, monospace;
+    --titlebar-h: 2.75rem;
   }
   *{ box-sizing: border-box; }
-  html, body{ margin: 0; }
+  html, body{ height: 100%; margin: 0; }
   body{ background: var(--bg); color: var(--ink); font-family: var(--font); }
 
   header{ border-bottom: 1px solid var(--line); }
@@ -51,13 +52,23 @@
     padding: 0.6rem 1.5rem;
   }
 
-  main{ max-width: 78rem; margin: 0 auto; padding: 1.5rem 1.5rem 6rem; }
+  #app{ min-height: calc(100% - 6rem); display: flex; flex-direction: column; }
+  main{
+    max-width: 78rem;
+    width: 100%;
+    margin: 0 auto;
+    padding: 1.5rem 1.5rem 2rem;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
 
   .layout{
     display: grid;
     grid-template-columns: 17rem 1fr;
     gap: 1.5rem;
-    align-items: start;
+    align-items: stretch;
+    flex: 1;
   }
   @media (max-width: 55em){ .layout{ grid-template-columns: 1fr; } }
 
@@ -65,14 +76,22 @@
     border: 1px solid var(--line);
     border-radius: 8px;
     background: var(--bg);
+    display: flex;
+    flex-direction: column;
   }
   .panel-head{
-    padding: 0.75rem 1rem;
+    height: var(--titlebar-h);
+    padding: 0 1rem;
     border-bottom: 1px solid var(--line);
     font-weight: 600;
     font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
   }
   .panel-body{ padding: 1rem; }
+
+  hr.divider{ border: none; border-top: 1px solid var(--line); margin: 1rem 0; }
 
   .opt{
     display: flex;
@@ -96,15 +115,12 @@
   .opt-text span{ display: block; font-size: 0.78rem; color: var(--ink-soft); line-height: 1.4; margin-top: 0.1rem; }
 
   .subfields{
-    margin-top: 1.25rem;
-    margin: 0.6rem 0 0.75rem 1.6rem;
-    padding-left: 0.75rem;
-    border-left: 2px solid var(--line);
+    margin: 0.6rem 0 0.75rem;
     display: grid;
     gap: 0.6rem;
   }
-  .field-row{ display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
-  .field-row label{ font-size: 0.78rem; color: var(--ink-soft); }
+  .digit-fields{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
+  .digit-fields > div{ min-width: 0; }
   .field-label{
     display: block;
     font-size: 0.72rem;
@@ -124,17 +140,18 @@
     padding: 0 0.5rem;
     color: var(--ink);
   }
-  input[type="number"]{ width: 4.5rem; }
   select:focus, .text-input:focus, input[type="number"]:focus{
     outline: 2px solid var(--accent);
     outline-offset: 1px;
   }
 
-  /* ---- Right column: drop zone / CSV preview, grows with content ---- */
+  /* ---- Right column: drop zone / CSV preview, fills remaining height ---- */
+  .right-col{ display: flex; flex-direction: column; min-height: 0; }
   .drop-area{
     border: 1.5px dashed var(--line);
     border-radius: 8px;
     min-height: 22rem;
+    flex: 1 0 auto;
     position: relative;
     transition: border-color .12s, background .12s;
     background-color: var(--bg);
@@ -145,13 +162,16 @@
       linear-gradient(-45deg, transparent 75%, var(--bg-soft) 75%);
     background-size: 22px 22px;
     background-position: 0 0, 0 11px, 11px -11px, -11px 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
   .drop-area.drag{ border-color: var(--accent); background-color: var(--accent-soft); }
   .drop-area.has-file{ border-style: solid; background-image: none; background-color: var(--bg); }
   .drop-area input[type="file"]{ display: none; }
 
   .drop-placeholder{
-    position: absolute; inset: 0;
+    flex: 1;
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
     gap: 0.4rem;
@@ -164,24 +184,18 @@
   .drop-placeholder .hint{ font-size: 0.78rem; color: var(--ink-faint); }
 
   .file-bar{
+    height: var(--titlebar-h);
+    padding: 0 1rem;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.82rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
-    padding: 0.65rem 1rem;
-    border-bottom: 1px solid var(--line);
-    font-size: 0.82rem;
+    flex-shrink: 0;
   }
   .file-bar .name{ font-weight: 600; }
   .file-bar .meta{ color: var(--ink-faint); }
-  .file-bar button{
-    background: none;
-    border: none;
-    color: var(--accent);
-    font-size: 0.8rem;
-    cursor: pointer;
-    padding: 0;
-  }
 
   .diagnostics{
     display: flex;
@@ -189,6 +203,7 @@
     gap: 0.5rem;
     padding: 0.65rem 1rem;
     border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
   }
   .badge{
     display: inline-flex;
@@ -202,44 +217,29 @@
   }
   .badge.bad{ background: #fdecea; color: #b3261e; border-color: #f3b3ac; }
   .badge.good{ background: #e7f5ee; color: var(--ok); border-color: #b9e3cd; }
-  .badge .dot{ width: 0.4rem; height: 0.4rem; border-radius: 50%; background: currentColor; flex-shrink: 0; }
-  .badge.neutral{ background:#f1f1f1; color:#777; border-color:#d8d8d8; }
-  .badge .status-icon{ font-weight:700; font-size:0.9rem; line-height:1; }
+  .badge.neutral{ background: #f1f1f1; color: #777; border-color: #d8d8d8; }
+  .badge .status-icon{ font-weight: 700; font-size: 0.9rem; line-height: 1; }
 
-  .csv-preview{
-    margin: 0;
-    padding: 1rem;
-    max-width: 100%;
-    overflow-x: auto;
-    color: var(--ink);
-  }
+  .csv-preview{ margin: 0; padding: 1rem; flex: 1; overflow: hidden; }
 
   .csv-table{
     border-collapse: collapse;
     font-family: var(--font-mono);
     font-size: 0.8rem;
-    min-width: max-content;
+    width: 100%;
+    table-layout: fixed;
   }
-
-  .csv-table th,
-  .csv-table td{
+  .csv-table th, .csv-table td{
     border: 1px solid var(--line);
-    padding: 0.45rem 0.65rem;
+    padding: 0.5rem 0.65rem;
     text-align: left;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 0; /* forces ellipsis to respect table-layout:fixed column width */
   }
-
-  .csv-table th{
-    font-weight: 600;
-    background: var(--bg-soft);
-  }
-
-  .csv-table td{
-    font-weight: 400;
-  }
-
-  .layout > div{ min-width: 0; }
-  .drop-area{ overflow: hidden; }
+  .csv-table th{ font-weight: 600; background: var(--bg-soft); }
+  .csv-table td{ font-weight: 400; }
 
   .error-banner{
     background: #fdecea;
@@ -251,30 +251,41 @@
     margin-top: 0.75rem;
   }
 
-  /* ---- Floating download button ---- */
-  .float-download{
-    position: fixed;
-    right: 1.5rem;
-    bottom: 1.5rem;
+  /* ---- Action bar: copy left, download right ---- */
+  .action-bar{
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 1rem;
+  }
+  .btn{
     display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-    height: 3rem;
+    justify-content: center;
+    gap: 0.4rem;
+    height: 2.75rem;
     padding: 0 1.25rem;
     font-family: var(--font);
     font-weight: 600;
-    font-size: 0.9rem;
-    border: none;
-    border-radius: 999px;
-    background: var(--accent);
-    color: #fff;
+    font-size: 0.85rem;
+    border-radius: 8px;
     cursor: pointer;
-    box-shadow: 0 4px 14px rgba(37,99,235,.35);
-    transition: transform .1s, background .12s, opacity .15s, visibility .15s;
+    border: 1px solid var(--line);
+    background: var(--bg);
+    color: var(--ink);
+    transition: background .12s, opacity .12s;
   }
-  .float-download:hover{ background: #1d4fd1; }
-  .float-download:active{ transform: translateY(1px); }
-  .float-download.hidden{ opacity: 0; visibility: hidden; pointer-events: none; }
+  .btn:hover:not(:disabled){ background: var(--bg-soft); }
+  .btn.primary{ background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover:not(:disabled){ background: #1d4fd1; }
+  .btn:disabled{ opacity: .4; cursor: not-allowed; }
+
+  .blocking-note{
+    font-size: 0.78rem;
+    color: #b3261e;
+    text-align: right;
+    margin-top: 0.4rem;
+  }
 </style>
 </head>
 <body>
@@ -286,7 +297,7 @@
   </div>
 </header>
 <div class="notice">
-  <div class="notice-inner">Strips the invisible byte-order mark, normalizes line endings to CRLF, and can generate a unique ID column. Everything runs locally in your browser &mdash; your file is never uploaded anywhere.</div>
+  <div class="notice-inner">Strips the invisible byte-order mark, normalizes line endings, cleans up header problems, and can generate a unique ID column. Everything runs locally in your browser &mdash; your file is never uploaded anywhere.</div>
 </div>
 
 <div id="app">
@@ -316,11 +327,36 @@
             <input type="checkbox" :disabled="blankRowCount === 0" :checked="trimBlankRows" @change="trimBlankRows = $event.target.checked; applyOptions()">
             <span class="opt-text">
               <strong>Drop blank rows</strong>
-              <span>Removes fully empty rows, including a trailing blank line.</span>
+              <span>Removes fully empty rows, wherever they fall in the file.</span>
             </span>
           </label>
 
-          <div style="height: 0.75rem"></div>
+          <label class="opt" :class="{disabled: !rawHasWhitespaceIssue}">
+            <input type="checkbox" :disabled="!rawHasWhitespaceIssue" :checked="trimWhitespace" @change="trimWhitespace = $event.target.checked; applyOptions()">
+            <span class="opt-text">
+              <strong>Trim stray whitespace</strong>
+              <span>Strips leading/trailing spaces from headers and values so fields actually match.</span>
+            </span>
+          </label>
+
+          <label class="opt" :class="{disabled: rawBlankHeaderCount === 0}">
+            <input type="checkbox" :disabled="rawBlankHeaderCount === 0" :checked="fixBlankHeaders" @change="fixBlankHeaders = $event.target.checked; applyOptions()">
+            <span class="opt-text">
+              <strong>Name blank columns</strong>
+              <span>Data Merge can't target a column with no header — fills in "Column N".</span>
+            </span>
+          </label>
+
+          <label class="opt" :class="{disabled: rawDupHeaderNames.length === 0}">
+            <input type="checkbox" :disabled="rawDupHeaderNames.length === 0" :checked="fixDupHeaders" @change="fixDupHeaders = $event.target.checked; applyOptions()">
+            <span class="opt-text">
+              <strong>Rename duplicate columns</strong>
+              <span>Two columns with the same name merge to only one field — numbers repeats like "Name (2)".</span>
+            </span>
+          </label>
+
+          <hr class="divider">
+
           <label class="opt" :class="{disabled: !rows.length}">
             <input type="checkbox" :disabled="!rows.length" :checked="genId" @change="genId = $event.target.checked; applyOptions()">
             <span class="opt-text">
@@ -340,20 +376,26 @@
               <label class="field-label" for="id-name">New column name</label>
               <input id="id-name" type="text" class="text-input" :value="idColName" @input="idColName = $event.target.value; applyOptions()">
             </div>
-            <div class="field-row">
-              <label for="id-digits">Random digits</label>
-              <input id="id-digits" type="number" min="1" max="9" :value="idDigits" @input="idDigits = clampDigits($event.target.value); applyOptions()">
+            <div class="digit-fields">
+              <div>
+                <label class="field-label" for="id-lead">Leading zeros</label>
+                <input id="id-lead" type="number" min="0" max="9" :value="idLeadingZeros" @input="idLeadingZeros = clampDigits($event.target.value, 0); applyOptions()">
+              </div>
+              <div>
+                <label class="field-label" for="id-digits">Random digits</label>
+                <input id="id-digits" type="number" min="1" max="9" :value="idDigits" @input="idDigits = clampDigits($event.target.value, 1); applyOptions()">
+              </div>
+              <div>
+                <label class="field-label" for="id-trail">Trailing zeros</label>
+                <input id="id-trail" type="number" min="0" max="9" :value="idTrailingZeros" @input="idTrailingZeros = clampDigits($event.target.value, 0); applyOptions()">
+              </div>
             </div>
-            <label class="opt" style="padding: 0.2rem 0;">
-              <input type="checkbox" :checked="idLeadingZero" @change="idLeadingZero = $event.target.checked; applyOptions()">
-              <span class="opt-text"><strong style="font-size: 0.78rem;">Force a leading zero</strong></span>
-            </label>
           </div>
         </div>
       </div>
 
       <!-- Drop zone / preview -->
-      <div>
+      <div class="right-col">
         <div class="drop-area" :class="{drag: dragging, 'has-file': rows.length}"
              @dragover.prevent="dragging = true"
              @dragleave.prevent="dragging = false"
@@ -369,33 +411,44 @@
             <div class="file-bar">
               <span class="name">{{ fileName }}</span>
               <span class="meta">{{ rows.length }} rows &middot; {{ headers.length }} columns</span>
-              <button @click="reset">Load a different file</button>
             </div>
             <div class="diagnostics">
               <span class="badge" :class="hadBom ? (stripBom ? 'good' : 'bad') : 'neutral'">
-                <span class="status-icon">{{ hadBom ? (stripBom ? '✓' : '✕') : '•' }}</span>
+                <span class="status-icon">{{ hadBom ? (stripBom ? '\u2713' : '\u2715') : '\u2022' }}</span>
                 {{ hadBom ? (stripBom ? 'BOM found — removed' : 'BOM found — not fixed') : 'No BOM' }}
               </span>
               <span class="badge" :class="lineEndings.mixed ? (normalizeCrlf ? 'good' : 'bad') : 'neutral'">
-                <span class="status-icon">{{ lineEndings.mixed ? (normalizeCrlf ? '✓' : '✕') : '•' }}</span>
+                <span class="status-icon">{{ lineEndings.mixed ? (normalizeCrlf ? '\u2713' : '\u2715') : '\u2022' }}</span>
                 {{ lineEndings.mixed
                     ? (normalizeCrlf ? lineEndingSummary + ' — normalizing to CRLF' : lineEndingSummary + ' — not fixed')
                     : 'Uniform CRLF' }}
               </span>
               <span class="badge" :class="blankRowCount ? (trimBlankRows ? 'good' : 'bad') : 'neutral'">
-                <span class="status-icon">{{ blankRowCount ? (trimBlankRows ? '✓' : '✕') : '•' }}</span>
+                <span class="status-icon">{{ blankRowCount ? (trimBlankRows ? '\u2713' : '\u2715') : '\u2022' }}</span>
                 {{ blankRowCount ? blankRowCount + ' blank rows' + (trimBlankRows ? ' — removed' : ' — not fixed') : 'No blank rows' }}
               </span>
+              <span class="badge" :class="rawBlankHeaderCount ? (fixBlankHeaders ? 'good' : 'bad') : 'neutral'">
+                <span class="status-icon">{{ rawBlankHeaderCount ? (fixBlankHeaders ? '\u2713' : '\u2715') : '\u2022' }}</span>
+                {{ rawBlankHeaderCount ? rawBlankHeaderCount + ' blank header(s)' + (fixBlankHeaders ? ' — named' : ' — not fixed') : 'No blank headers' }}
+              </span>
+              <span class="badge" :class="rawDupHeaderNames.length ? (fixDupHeaders ? 'good' : 'bad') : 'neutral'">
+                <span class="status-icon">{{ rawDupHeaderNames.length ? (fixDupHeaders ? '\u2713' : '\u2715') : '\u2022' }}</span>
+                {{ rawDupHeaderNames.length ? 'Duplicate header(s)' + (fixDupHeaders ? ' — renamed' : ' — not fixed') : 'No duplicate headers' }}
+              </span>
             </div>
-            <div class="csv-preview"><table class="csv-table"><thead><tr><th v-for="h in headers" :key="h">{{ h }}</th></tr></thead><tbody><tr v-for="(r, i) in rows" :key="i"><td v-for="h in headers" :key="h">{{ r[h] }}</td></tr></tbody></table></div>
+            <div class="csv-preview"><table class="csv-table"><thead><tr><th v-for="h in headers" :key="h">{{ h }}</th></tr></thead><tbody><tr v-for="(r, i) in rows" :key="i"><td v-for="h in headers" :key="h">{{ r[h] || '\u00A0' }}</td></tr></tbody></table></div>
           </template>
         </div>
         <div v-if="parseError" class="error-banner">{{ parseError }}</div>
+
+        <div class="action-bar" v-if="rows.length">
+          <button class="btn" @click="copyToClipboard">{{ copied ? 'Copied' : 'Copy to clipboard' }}</button>
+          <button class="btn primary" :disabled="!canDownload" @click="download">Download fixed CSV</button>
+        </div>
+        <div class="blocking-note" v-if="rows.length && !canDownload">{{ blockingIssues[0] }} — InDesign won't open this cleanly until it's fixed.</div>
       </div>
     </div>
   </main>
-
-  <button class="float-download" :class="{hidden: !rows.length}" @click="download">Download fixed CSV</button>
 </div>
 
 <script>
@@ -433,6 +486,7 @@ document.addEventListener('DOMContentLoaded', function(){
     fileName: '',
     dragging: false,
     parseError: '',
+    copied: false,
 
     originalText: '',
     hadBom: false,
@@ -443,20 +497,24 @@ document.addEventListener('DOMContentLoaded', function(){
     stripBom: true,
     normalizeCrlf: true,
     trimBlankRows: true,
+    trimWhitespace: true,
+    fixBlankHeaders: true,
+    fixDupHeaders: true,
 
     genId: false,
     idSourceCol: '',
     idColName: 'ID',
     idDigits: 4,
-    idLeadingZero: true,
+    idLeadingZeros: 0,
+    idTrailingZeros: 0,
 
     headers: [],
     rows: [],
 
     get csvText(){ return this.buildCsvText(); },
 
-    // Diagnostics reflect the ORIGINAL file, regardless of which fixes
-    // are ticked — so the badges show what's actually wrong with it.
+    // ---- Diagnostics: always read from the RAW/original file so badges
+    // reflect what's actually wrong, independent of the fix toggles ----
     get lineEndings(){
       const text = this.originalText;
       let crlf = 0, lf = 0, cr = 0;
@@ -469,11 +527,6 @@ document.addEventListener('DOMContentLoaded', function(){
       }
       return { crlf, lf, cr, mixed: (lf + cr) > 0 };
     },
-    get blankRowCount(){
-      if (!this.rawRows.length || !this.rawHeaders.length) return 0;
-      return this.rawRows.filter(r => !this.rawHeaders.some(h => (r[h] || '').trim() !== '')).length;
-    },
-
     get lineEndingSummary(){
       const { crlf, lf, cr } = this.lineEndings;
       const parts = [];
@@ -482,11 +535,52 @@ document.addEventListener('DOMContentLoaded', function(){
       if (cr) parts.push(`${cr} CR`);
       return parts.join(', ');
     },
+    get blankRowCount(){
+      if (!this.rawRows.length || !this.rawHeaders.length) return 0;
+      return this.rawRows.filter(r => !this.rawHeaders.some(h => (r[h] || '').trim() !== '')).length;
+    },
+    get rawHasWhitespaceIssue(){
+      if (this.rawHeaders.some(h => h !== h.trim())) return true;
+      return this.rawRows.some(r => this.rawHeaders.some(h => {
+        const v = r[h];
+        return typeof v === 'string' && v !== v.trim();
+      }));
+    },
+    get rawBlankHeaderCount(){
+      return this.rawHeaders.filter(h => h.trim() === '').length;
+    },
+    get rawDupHeaderNames(){
+      const counts = {};
+      this.rawHeaders.forEach(h => {
+        const k = h.trim();
+        if (!k) return; // blank headers handled separately
+        counts[k] = (counts[k] || 0) + 1;
+      });
+      return Object.keys(counts).filter(k => counts[k] > 1);
+    },
 
-    clampDigits(v){
+    // ---- Issues that would actually stop InDesign opening the file cleanly ----
+    get finalDuplicateHeaders(){
+      const counts = {};
+      this.headers.forEach(h => { counts[h] = (counts[h] || 0) + 1; });
+      return Object.keys(counts).filter(k => counts[k] > 1);
+    },
+    get finalBlankHeaderCount(){
+      return this.headers.filter(h => h.trim() === '').length;
+    },
+    get blockingIssues(){
+      const issues = [];
+      if (this.parseError) issues.push(this.parseError);
+      if (this.finalBlankHeaderCount) issues.push(`${this.finalBlankHeaderCount} column(s) still have no header name`);
+      if (this.finalDuplicateHeaders.length) issues.push(`Duplicate column name(s): ${this.finalDuplicateHeaders.join(', ')}`);
+      return issues;
+    },
+    get canDownload(){ return this.rows.length > 0 && this.blockingIssues.length === 0; },
+
+    clampDigits(v, min){
       v = parseInt(v, 10);
-      if (isNaN(v)) return 4;
-      return Math.min(9, Math.max(1, v));
+      if (isNaN(v)) return min;
+      return Math.min(9, Math.max(min, v));
     },
 
     onDrop(e){
@@ -497,15 +591,6 @@ document.addEventListener('DOMContentLoaded', function(){
     onFilePick(e){
       const f = e.target.files[0];
       if (f) this.readFile(f);
-    },
-
-    reset(){
-      this.fileName = '';
-      this.originalText = '';
-      this.rawHeaders = []; this.rawRows = [];
-      this.headers = []; this.rows = [];
-      this.parseError = '';
-      this.idSourceCol = '';
     },
 
     readFile(file){
@@ -529,6 +614,7 @@ document.addEventListener('DOMContentLoaded', function(){
         text = new TextDecoder('iso-8859-1').decode(bytes);
       }
       this.originalText = text;
+      this.idSourceCol = '';
       this.rebuild();
     },
 
@@ -539,18 +625,25 @@ document.addEventListener('DOMContentLoaded', function(){
       let text = this.originalText;
       this.hadBom = text.charCodeAt(0) === 0xFEFF;
       if (this.hadBom && this.stripBom) text = text.slice(1);
+      else if (this.hadBom) { /* keep it so the raw state shows the problem */ }
 
       try {
         const table = parseCsv(text.replace(/\r\n/g, '\n').replace(/\r/g, '\n'));
         if (!table.length) throw new Error('empty file');
         const headers = table[0];
-        const objRows = table.slice(1)
-          .filter(r => r.length > 1 || (r[0] || '').trim() !== '')
-          .map(r => {
-            const o = {};
-            headers.forEach((h, i) => { o[h] = r[i] !== undefined ? r[i] : ''; });
-            return o;
-          });
+        let dataRows = table.slice(1);
+        // Drop only a single trailing artifact row caused by a final
+        // newline at EOF — real blank rows elsewhere in the file are kept
+        // so the "Drop blank rows" checkbox has something to act on.
+        if (dataRows.length){
+          const last = dataRows[dataRows.length - 1];
+          if (last.length === 1 && (last[0] || '').trim() === '') dataRows = dataRows.slice(0, -1);
+        }
+        const objRows = dataRows.map(r => {
+          const o = {};
+          headers.forEach((h, i) => { o[h] = r[i] !== undefined ? r[i] : ''; });
+          return o;
+        });
         this.rawHeaders = headers;
         this.rawRows = objRows;
         if (!this.idSourceCol && headers.includes('Code')) this.idSourceCol = 'Code';
@@ -565,20 +658,42 @@ document.addEventListener('DOMContentLoaded', function(){
       this.applyOptions();
     },
 
-    // Applies the row/column-level options (blank rows, ID column) on
-    // top of the freshly re-parsed raw data — also always starts clean.
+    // Applies every column/row-level fix on top of the freshly re-parsed
+    // raw data — always starts clean from rawHeaders/rawRows.
     applyOptions(){
       if (!this.rawHeaders.length) return;
 
+      // 1. Header pipeline: trim -> name blanks -> dedupe
       let headers = this.rawHeaders.slice();
-      let rows = this.rawRows.map(r => ({ ...r }));
+      if (this.trimWhitespace) headers = headers.map(h => h.trim());
+      if (this.fixBlankHeaders) headers = headers.map((h, i) => h === '' ? `Column ${i + 1}` : h);
+      if (this.fixDupHeaders){
+        const seen = {};
+        headers = headers.map(h => {
+          seen[h] = (seen[h] || 0) + 1;
+          return seen[h] > 1 ? `${h} (${seen[h]})` : h;
+        });
+      }
 
+      // 2. Row values, remapped from raw header -> processed header, trimmed if enabled
+      let rows = this.rawRows.map(r => {
+        const o = {};
+        this.rawHeaders.forEach((rawH, i) => {
+          let v = r[rawH];
+          if (this.trimWhitespace && typeof v === 'string') v = v.trim();
+          o[headers[i]] = v;
+        });
+        return o;
+      });
+
+      // 3. Blank rows
       if (this.trimBlankRows){
         rows = rows.filter(r => headers.some(h => (r[h] || '').trim() !== ''));
       }
 
+      // 4. Unique ID column
       if (this.genId){
-        const targetIsExisting = !!this.idSourceCol;
+        const targetIsExisting = !!this.idSourceCol && headers.includes(this.idSourceCol);
         const newCol = this.idColName || 'ID';
         if (targetIsExisting){
           headers = headers.map(h => h === this.idSourceCol ? newCol : h);
@@ -587,13 +702,16 @@ document.addEventListener('DOMContentLoaded', function(){
         }
         const used = new Set();
         const digits = this.idDigits;
+        const leadZ = this.idLeadingZeros;
+        const trailZ = this.idTrailingZeros;
+        const maxAttempts = 3000; // guarantees termination instead of hanging
         const genOne = () => {
-          let id;
+          let id, attempts = 0;
           do {
-            let body = Array.from({ length: digits }, () => Math.floor(Math.random() * 10)).join('');
-            if (this.idLeadingZero) body = '0' + body.slice(1);
-            // Keep IDs fixed width and ensure unused trailing positions are zero filled.
-            id = body.padEnd(digits, '0').slice(0, digits);
+            const body = Array.from({ length: digits }, () => Math.floor(Math.random() * 10)).join('');
+            id = '0'.repeat(leadZ) + body + '0'.repeat(trailZ);
+            attempts++;
+            if (attempts > maxAttempts){ id = id + '-' + (used.size + 1); break; }
           } while (used.has(id));
           used.add(id);
           return id;
@@ -622,6 +740,7 @@ document.addEventListener('DOMContentLoaded', function(){
     },
 
     download(){
+      if (!this.canDownload) return;
       const text = this.buildCsvText();
       const blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
       const url = URL.createObjectURL(blob);
@@ -630,6 +749,14 @@ document.addEventListener('DOMContentLoaded', function(){
       a.download = this.outFileName();
       a.click();
       URL.revokeObjectURL(url);
+    },
+
+    async copyToClipboard(){
+      try {
+        await navigator.clipboard.writeText(this.buildCsvText());
+        this.copied = true;
+        setTimeout(() => { this.copied = false; }, 1500);
+      } catch (e) { /* clipboard unavailable — silently ignore */ }
     },
 
   }).mount('#app');
