@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CSV Fixer for Data Merge</title>
-<meta name="description" content="Clean up a CSV for InDesign Data Merge: strip BOM, normalize line endings, fix header issues, and generate a unique ID column. Runs entirely in your browser.">
+<meta name="description" content="Clean up a CSV for InDesign Data Merge: strip the BOM, normalize line endings, fix the delimiter, and clean up header and row problems. Runs entirely in your browser.">
 <meta name="theme-color" content="#ffffff">
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/petite-vue/0.4.1/petite-vue.iife.js" defer></script>
@@ -34,8 +34,8 @@
     margin: 0 auto;
     padding: 1.1rem 1.5rem;
     display: flex;
-    align-items: baseline;
-    gap: 0.75rem;
+    flex-direction: column;
+    gap: 0.15rem;
   }
   header h1{ font-size: 1.1rem; font-weight: 600; margin: 0; }
   header .sub{ font-size: 0.85rem; color: var(--ink-faint); }
@@ -113,37 +113,6 @@
   }
   .opt-text strong{ display: block; font-size: 0.85rem; font-weight: 600; }
   .opt-text span{ display: block; font-size: 0.78rem; color: var(--ink-soft); line-height: 1.4; margin-top: 0.1rem; }
-
-  .subfields{
-    margin: 0.6rem 0 0.75rem;
-    display: grid;
-    gap: 0.6rem;
-  }
-  .digit-fields{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
-  .digit-fields > div{ min-width: 0; }
-  .field-label{
-    display: block;
-    font-size: 0.72rem;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    color: var(--ink-soft);
-    margin-bottom: 0.25rem;
-  }
-  select, .text-input, input[type="number"]{
-    width: 100%;
-    height: 2.15rem;
-    background: var(--bg);
-    border: 1px solid var(--line);
-    border-radius: 5px;
-    font-family: var(--font);
-    font-size: 0.85rem;
-    padding: 0 0.5rem;
-    color: var(--ink);
-  }
-  select:focus, .text-input:focus, input[type="number"]:focus{
-    outline: 2px solid var(--accent);
-    outline-offset: 1px;
-  }
 
   /* ---- Right column: drop zone / CSV preview, fills remaining height ---- */
   .right-col{ display: flex; flex-direction: column; min-height: 0; align-self: stretch; }
@@ -279,13 +248,6 @@
   .btn.primary{ background: var(--accent); border-color: var(--accent); color: #fff; }
   .btn.primary:hover:not(:disabled){ background: #1d4fd1; }
   .btn:disabled{ opacity: .4; cursor: not-allowed; }
-
-  .blocking-note{
-    font-size: 0.78rem;
-    color: #b3261e;
-    text-align: right;
-    margin-top: 0.4rem;
-  }
 </style>
 </head>
 <body>
@@ -297,7 +259,7 @@
   </div>
 </header>
 <div class="notice">
-  <div class="notice-inner">Strips the invisible byte-order mark, normalizes line endings, cleans up header problems, and can generate a unique ID column. Everything runs locally in your browser &mdash; your file is never uploaded anywhere.</div>
+  <div class="notice-inner">Strips the invisible byte-order mark, normalizes line endings, converts a semicolon delimiter to commas, and cleans up blank, duplicate, and misaligned rows and headers. Everything runs locally in your browser &mdash; your file is never uploaded anywhere.</div>
 </div>
 
 <div id="app">
@@ -312,6 +274,14 @@
             <span class="opt-text">
               <strong>Strip UTF-8 BOM</strong>
               <span>Removes the hidden mark some editors add to the start of the file.</span>
+            </span>
+          </label>
+
+          <label class="opt" :class="{disabled: !hadSemicolonIssue}">
+            <input type="checkbox" :disabled="!hadSemicolonIssue" :checked="fixSemicolon" @change="fixSemicolon = $event.target.checked; applyOptions()">
+            <span class="opt-text">
+              <strong>Convert semicolon delimiter</strong>
+              <span>European-locale Excel exports use ";" instead of ",", which Data Merge won't split correctly.</span>
             </span>
           </label>
 
@@ -347,6 +317,8 @@
             </span>
           </label>
 
+          <hr class="divider">
+
           <label class="opt" :class="{disabled: rawDupHeaderNames.length === 0}">
             <input type="checkbox" :disabled="rawDupHeaderNames.length === 0" :checked="fixDupHeaders" @change="fixDupHeaders = $event.target.checked; applyOptions()">
             <span class="opt-text">
@@ -354,53 +326,16 @@
               <span>Two columns with the same name merge to only one field — numbers repeats like "Name (2)".</span>
             </span>
           </label>
-
-          <hr class="divider">
-
-          <label class="opt" :class="{disabled: !rows.length}">
-            <input type="checkbox" :disabled="!rows.length" :checked="genId" @change="genId = $event.target.checked; applyOptions()">
-            <span class="opt-text">
-              <strong>Generate unique ID column</strong>
-              <span>Replaces a column with random, non-repeating numeric IDs.</span>
-            </span>
-          </label>
-          <div class="subfields" v-if="genId">
-            <div>
-              <label class="field-label" for="id-source">Replace column</label>
-              <select id="id-source" @change="idSourceCol = $event.target.value; applyOptions()">
-                <option value="">&mdash; new column, keep existing &mdash;</option>
-                <option v-for="h in headers" :key="h" :value="h" :selected="h === idSourceCol">{{ h }}</option>
-              </select>
-            </div>
-            <div>
-              <label class="field-label" for="id-name">New column name</label>
-              <input id="id-name" type="text" class="text-input" :value="idColName" @input="idColName = $event.target.value; applyOptions()">
-            </div>
-            <div class="digit-fields">
-              <div>
-                <label class="field-label" for="id-lead">Leading zeros</label>
-                <input id="id-lead" type="number" min="0" max="9" :value="idLeadingZeros" @input="idLeadingZeros = clampDigits($event.target.value, 0); applyOptions()">
-              </div>
-              <div>
-                <label class="field-label" for="id-digits">Random digits</label>
-                <input id="id-digits" type="number" min="1" max="9" :value="idDigits" @input="idDigits = clampDigits($event.target.value, 1); applyOptions()">
-              </div>
-              <div>
-                <label class="field-label" for="id-trail">Trailing zeros</label>
-                <input id="id-trail" type="number" min="0" max="9" :value="idTrailingZeros" @input="idTrailingZeros = clampDigits($event.target.value, 0); applyOptions()">
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 
       <!-- Drop zone / preview -->
       <div class="right-col">
-        <div class="drop-area" :class="{drag: dragging, 'has-file': rows.length}"
+        <div class="drop-area" :class="{drag: dragging, 'has-file': headers.length}"
              @dragover.prevent="dragging = true"
              @dragleave.prevent="dragging = false"
              @drop.prevent="onDrop">
-          <template v-if="!rows.length">
+          <template v-if="!headers.length">
             <label class="drop-placeholder">
               <input type="file" accept=".csv,text/csv" @change="onFilePick">
               <div>Drop a .csv here, or click to browse</div>
@@ -416,6 +351,10 @@
               <span class="badge" :class="hadBom ? (stripBom ? 'good' : 'bad') : 'neutral'">
                 <span class="status-icon">{{ hadBom ? (stripBom ? '\u2713' : '\u2715') : '\u2022' }}</span>
                 {{ hadBom ? (stripBom ? 'BOM found — removed' : 'BOM found — not fixed') : 'No BOM' }}
+              </span>
+              <span class="badge" :class="hadSemicolonIssue ? (fixSemicolon ? 'good' : 'bad') : 'neutral'">
+                <span class="status-icon">{{ hadSemicolonIssue ? (fixSemicolon ? '\u2713' : '\u2715') : '\u2022' }}</span>
+                {{ hadSemicolonIssue ? (fixSemicolon ? 'Semicolon-delimited — converted' : 'Semicolon-delimited — not fixed') : 'Comma-delimited' }}
               </span>
               <span class="badge" :class="lineEndings.mixed ? (normalizeCrlf ? 'good' : 'bad') : 'neutral'">
                 <span class="status-icon">{{ lineEndings.mixed ? (normalizeCrlf ? '\u2713' : '\u2715') : '\u2022' }}</span>
@@ -435,8 +374,16 @@
                 <span class="status-icon">{{ rawDupHeaderNames.length ? (fixDupHeaders ? '\u2713' : '\u2715') : '\u2022' }}</span>
                 {{ rawDupHeaderNames.length ? 'Duplicate header(s)' + (fixDupHeaders ? ' — renamed' : ' — not fixed') : 'No duplicate headers' }}
               </span>
+              <span class="badge" :class="raggedRowCount ? 'good' : 'neutral'">
+                <span class="status-icon">{{ raggedRowCount ? '\u2713' : '\u2022' }}</span>
+                {{ raggedRowCount ? raggedRowCount + ' row(s) had the wrong field count — auto-aligned to headers' : 'All rows match the header count' }}
+              </span>
+              <span class="badge neutral" v-if="atHeaderCount">
+                <span class="status-icon">{{ '\u2022' }}</span>
+                {{ atHeaderCount }} column(s) start with "@" — Data Merge treats these as image fields, not text
+              </span>
             </div>
-            <div class="csv-preview"><table class="csv-table"><thead><tr><th v-for="h in headers" :key="h">{{ h }}</th></tr></thead><tbody><tr v-for="(r, i) in rows" :key="i"><td v-for="h in headers" :key="h">{{ r[h] || '\u00A0' }}</td></tr></tbody></table></div>
+            <div class="csv-preview"><table class="csv-table"><thead><tr><th v-for="h in headers" :key="h">{{ h }}</th></tr></thead><tbody><tr v-for="(r, i) in rows" :key="i"><td v-for="h in headers" :key="h">{{ cellText(r[h]) }}</td></tr></tbody></table></div>
           </template>
         </div>
         <div v-if="parseError" class="error-banner">{{ parseError }}</div>
@@ -454,7 +401,8 @@
 <script>
 document.addEventListener('DOMContentLoaded', function(){
 
-  function parseCsv(text){
+  function parseCsv(text, delim){
+    delim = delim || ',';
     const rows = [];
     let row = [], field = '', inQuotes = false;
     for (let i = 0; i < text.length; i++){
@@ -466,7 +414,7 @@ document.addEventListener('DOMContentLoaded', function(){
         } else field += c;
       } else {
         if (c === '"') inQuotes = true;
-        else if (c === ','){ row.push(field); field = ''; }
+        else if (c === delim){ row.push(field); field = ''; }
         else if (c === '\n'){ row.push(field); rows.push(row); row = []; field = ''; }
         else if (c === '\r'){ /* skip, \n handles the break */ }
         else field += c;
@@ -476,10 +424,32 @@ document.addEventListener('DOMContentLoaded', function(){
     return rows;
   }
 
-  function csvField(v){
+  function csvField(v, delim){
     v = v == null ? '' : String(v);
-    if (/[",\n]/.test(v)) return '"' + v.replace(/"/g, '""') + '"';
+    const special = new RegExp('["' + delim + '\\n]');
+    if (special.test(v)) return '"' + v.replace(/"/g, '""') + '"';
     return v;
+  }
+
+  // Common non-comma export from European-locale Excel — count top-level
+  // (unquoted) commas vs semicolons on the header line only.
+  function firstLine(text){
+    const idx = text.search(/\r\n|\r|\n/);
+    return idx === -1 ? text : text.slice(0, idx);
+  }
+  function detectDelimiter(line){
+    let commas = 0, semis = 0, inQuotes = false;
+    for (let i = 0; i < line.length; i++){
+      const c = line[i];
+      if (inQuotes){
+        if (c === '"'){ if (line[i + 1] === '"') i++; else inQuotes = false; }
+      } else {
+        if (c === '"') inQuotes = true;
+        else if (c === ',') commas++;
+        else if (c === ';') semis++;
+      }
+    }
+    return semis > commas ? ';' : ',';
   }
 
   // A trim that deliberately does NOT strip U+FEFF (the BOM character).
@@ -513,18 +483,12 @@ document.addEventListener('DOMContentLoaded', function(){
     trimWhitespace: true,
     fixBlankHeaders: true,
     fixDupHeaders: true,
+    fixSemicolon: true,
 
-    genId: false,
-    idSourceCol: '',
-    idColName: 'ID',
-    idDigits: 4,
-    idLeadingZeros: 0,
-    idTrailingZeros: 0,
+    raggedRowCount: 0,
 
     headers: [],
     rows: [],
-
-    get csvText(){ return this.buildCsvText(); },
 
     // ---- Diagnostics: always read from the RAW/original file so badges
     // reflect what's actually wrong, independent of the fix toggles ----
@@ -560,17 +524,24 @@ document.addEventListener('DOMContentLoaded', function(){
       }));
     },
     get rawBlankHeaderCount(){
-      return this.rawHeaders.filter(h => trimWS(h.charCodeAt(0) === 0xFEFF ? h.slice(1) : h) === '').length;
+      return this.rawHeaders.filter(h => trimWS(h) === '').length;
     },
     get rawDupHeaderNames(){
       const counts = {};
       this.rawHeaders.forEach(h => {
-        const stripped = h.charCodeAt(0) === 0xFEFF ? h.slice(1) : h;
-        const k = trimWS(stripped);
+        const k = trimWS(h);
         if (!k) return; // blank headers handled separately
         counts[k] = (counts[k] || 0) + 1;
       });
       return Object.keys(counts).filter(k => counts[k] > 1);
+    },
+    get detectedDelimiter(){
+      if (!this.originalText) return ',';
+      return detectDelimiter(firstLine(this.originalText));
+    },
+    get hadSemicolonIssue(){ return this.detectedDelimiter === ';'; },
+    get atHeaderCount(){
+      return this.headers.filter(h => h.charAt(0) === '@').length;
     },
 
     // ---- Issues that would actually stop InDesign opening the file cleanly ----
@@ -586,6 +557,7 @@ document.addEventListener('DOMContentLoaded', function(){
       const issues = [];
       if (this.parseError) issues.push(this.parseError);
       if (this.hadBom && !this.stripBom) issues.push('UTF-8 BOM not removed');
+      if (this.hadSemicolonIssue && !this.fixSemicolon) issues.push('Still semicolon-delimited, not comma-delimited');
       if (this.lineEndings.mixed && !this.normalizeCrlf) issues.push(`Line endings not normalized (${this.lineEndingSummary})`);
       if (this.blankRowCount && !this.trimBlankRows) issues.push(`${this.blankRowCount} blank row(s) not removed`);
       if (this.rawHasWhitespaceIssue && !this.trimWhitespace) issues.push('Stray whitespace not trimmed');
@@ -593,12 +565,14 @@ document.addEventListener('DOMContentLoaded', function(){
       if (this.finalDuplicateHeaders.length) issues.push(`Duplicate column name(s): ${this.finalDuplicateHeaders.join(', ')}`);
       return issues;
     },
-    get canDownload(){ return this.rows.length > 0 && this.blockingIssues.length === 0; },
+    get canDownload(){ return this.headers.length > 0 && this.blockingIssues.length === 0; },
 
-    clampDigits(v, min){
-      v = parseInt(v, 10);
-      if (isNaN(v)) return min;
-      return Math.min(9, Math.max(min, v));
+    // Shows an embedded line break as a visible mark instead of silently
+    // vanishing into a nowrap/ellipsis cell — the real newline is untouched
+    // in the underlying data, only this display string is rewritten.
+    cellText(v){
+      v = v || '';
+      return v.replace(/\r\n|\r|\n/g, ' \u23CE ') || '\u00A0';
     },
 
     onDrop(e){
@@ -632,7 +606,6 @@ document.addEventListener('DOMContentLoaded', function(){
         text = new TextDecoder('iso-8859-1').decode(bytes);
       }
       this.originalText = text;
-      this.idSourceCol = '';
       this.rebuild();
     },
 
@@ -643,10 +616,10 @@ document.addEventListener('DOMContentLoaded', function(){
       let text = this.originalText;
       this.hadBom = text.charCodeAt(0) === 0xFEFF;
       if (this.hadBom && this.stripBom) text = text.slice(1);
-      else if (this.hadBom) { /* keep it so the raw state shows the problem */ }
 
       try {
-        const table = parseCsv(text.replace(/\r\n/g, '\n').replace(/\r/g, '\n'));
+        const delim = this.detectedDelimiter;
+        const table = parseCsv(text.replace(/\r\n/g, '\n').replace(/\r/g, '\n'), delim);
         if (!table.length) throw new Error('empty file');
         const headers = table[0];
         let dataRows = table.slice(1);
@@ -655,8 +628,13 @@ document.addEventListener('DOMContentLoaded', function(){
         // so the "Drop blank rows" checkbox has something to act on.
         if (dataRows.length){
           const last = dataRows[dataRows.length - 1];
-          if (last.length === 1 && (last[0] || '').trim() === '') dataRows = dataRows.slice(0, -1);
+          if (last.length === 1 && trimWS(last[0] || '') === '') dataRows = dataRows.slice(0, -1);
         }
+        // Rows with more/fewer fields than the header row shift every
+        // value after the mismatch into the wrong column. We normalize
+        // them (pad short rows, drop extra trailing fields) automatically
+        // since there's no safe "unfixed" state to preview — just flag it.
+        this.raggedRowCount = dataRows.filter(r => r.length !== headers.length).length;
         const objRows = dataRows.map(r => {
           const o = {};
           headers.forEach((h, i) => { o[h] = r[i] !== undefined ? r[i] : ''; });
@@ -664,7 +642,6 @@ document.addEventListener('DOMContentLoaded', function(){
         });
         this.rawHeaders = headers;
         this.rawRows = objRows;
-        if (!this.idSourceCol && headers.includes('Code')) this.idSourceCol = 'Code';
         this.parseError = '';
       } catch (e) {
         this.parseError = 'Could not parse that as a CSV.';
@@ -709,37 +686,6 @@ document.addEventListener('DOMContentLoaded', function(){
         rows = rows.filter(r => headers.some(h => trimWS(r[h] || '') !== ''));
       }
 
-      // 4. Unique ID column
-      if (this.genId){
-        const targetIsExisting = !!this.idSourceCol && headers.includes(this.idSourceCol);
-        const newCol = this.idColName || 'ID';
-        if (targetIsExisting){
-          headers = headers.map(h => h === this.idSourceCol ? newCol : h);
-        } else if (!headers.includes(newCol)){
-          headers = headers.concat([newCol]);
-        }
-        const used = new Set();
-        const digits = this.idDigits;
-        const leadZ = this.idLeadingZeros;
-        const trailZ = this.idTrailingZeros;
-        const maxAttempts = 3000; // guarantees termination instead of hanging
-        const genOne = () => {
-          let id, attempts = 0;
-          do {
-            const body = Array.from({ length: digits }, () => Math.floor(Math.random() * 10)).join('');
-            id = '0'.repeat(leadZ) + body + '0'.repeat(trailZ);
-            attempts++;
-            if (attempts > maxAttempts){ id = id + '-' + (used.size + 1); break; }
-          } while (used.has(id));
-          used.add(id);
-          return id;
-        };
-        rows.forEach(r => {
-          if (targetIsExisting) delete r[this.idSourceCol];
-          r[newCol] = genOne();
-        });
-      }
-
       this.headers = headers;
       this.rows = rows;
     },
@@ -747,8 +693,9 @@ document.addEventListener('DOMContentLoaded', function(){
     buildCsvText(){
       if (!this.headers.length) return '';
       const nl = this.normalizeCrlf ? '\r\n' : '\n';
-      const lines = [this.headers.map(csvField).join(',')];
-      this.rows.forEach(r => lines.push(this.headers.map(h => csvField(r[h])).join(',')));
+      const outDelim = (this.detectedDelimiter === ';' && this.fixSemicolon) ? ',' : this.detectedDelimiter;
+      const lines = [this.headers.map(h => csvField(h, outDelim)).join(outDelim)];
+      this.rows.forEach(r => lines.push(this.headers.map(h => csvField(r[h], outDelim)).join(outDelim)));
       return lines.join(nl) + nl;
     },
 
