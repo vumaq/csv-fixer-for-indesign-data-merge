@@ -189,7 +189,7 @@
   .badge.neutral{ background: #f1f1f1; color: #777; border-color: #d8d8d8; }
   .badge .status-icon{ font-weight: 700; font-size: 0.9rem; line-height: 1; }
 
-  .csv-preview{ margin: 0; padding: 1rem; flex: 1; overflow: hidden; }
+  .csv-preview{ margin: 0; padding: 1rem; flex: 1; overflow-y: auto; overflow-x: hidden; }
 
   .csv-table{
     border-collapse: collapse;
@@ -207,8 +207,12 @@
     text-overflow: ellipsis;
     max-width: 0; /* forces ellipsis to respect table-layout:fixed column width */
   }
-  .csv-table th{ font-weight: 600; background: var(--bg-soft); }
+  .csv-table th{ font-weight: 600; background: var(--bg-soft); position: sticky; top: 0; }
   .csv-table td{ font-weight: 400; }
+  /* Lets Chromium skip layout/paint for offscreen rows without any custom
+     virtualization JS — a no-op, no-risk fallback in browsers that don't
+     support it. Row height is uniform since cells never wrap. */
+  .csv-table tbody tr{ content-visibility: auto; contain-intrinsic-size: auto 2.15rem; }
 
   .error-banner{
     background: #fdecea;
@@ -452,6 +456,22 @@ document.addEventListener('DOMContentLoaded', function(){
     return semis > commas ? ';' : ',';
   }
 
+  // Scans the whole file once for its line-ending mix. Previously this ran
+  // as a getter re-executed on every template read (badge color, badge
+  // text, disabled state, blocking check — 5+ reads per render), rescanning
+  // the entire file each time. Now called once per rebuild() instead.
+  function analyzeLineEndings(text){
+    let crlf = 0, lf = 0, cr = 0;
+    const re = /\r\n|\r|\n/g;
+    let m;
+    while ((m = re.exec(text)) !== null){
+      if (m[0] === '\r\n') crlf++;
+      else if (m[0] === '\n') lf++;
+      else cr++;
+    }
+    return { crlf, lf, cr, mixed: (lf + cr) > 0 };
+  }
+
   // A trim that deliberately does NOT strip U+FEFF (the BOM character).
   // Native String.trim() treats \uFEFF as whitespace, which meant the
   // "Trim stray whitespace" fix would silently eat a BOM the "Strip UTF-8
@@ -473,6 +493,10 @@ document.addEventListener('DOMContentLoaded', function(){
 
     originalText: '',
     hadBom: false,
+    delimiter: ',',
+    lineEndings: { crlf: 0, lf: 0, cr: 0, mixed: false },
+    blankRowCount: 0,
+    rawHasWhitespaceIssue: false,
 
     rawHeaders: [],
     rawRows: [],
@@ -492,18 +516,6 @@ document.addEventListener('DOMContentLoaded', function(){
 
     // ---- Diagnostics: always read from the RAW/original file so badges
     // reflect what's actually wrong, independent of the fix toggles ----
-    get lineEndings(){
-      const text = this.originalText;
-      let crlf = 0, lf = 0, cr = 0;
-      const re = /\r\n|\r|\n/g;
-      let m;
-      while ((m = re.exec(text)) !== null){
-        if (m[0] === '\r\n') crlf++;
-        else if (m[0] === '\n') lf++;
-        else cr++;
-      }
-      return { crlf, lf, cr, mixed: (lf + cr) > 0 };
-    },
     get lineEndingSummary(){
       const { crlf, lf, cr } = this.lineEndings;
       const parts = [];
@@ -511,17 +523,6 @@ document.addEventListener('DOMContentLoaded', function(){
       if (lf) parts.push(`${lf} LF`);
       if (cr) parts.push(`${cr} CR`);
       return parts.join(', ');
-    },
-    get blankRowCount(){
-      if (!this.rawRows.length || !this.rawHeaders.length) return 0;
-      return this.rawRows.filter(r => !this.rawHeaders.some(h => trimWS(r[h] || '') !== '')).length;
-    },
-    get rawHasWhitespaceIssue(){
-      if (this.rawHeaders.some(h => h !== trimWS(h))) return true;
-      return this.rawRows.some(r => this.rawHeaders.some(h => {
-        const v = r[h];
-        return typeof v === 'string' && v !== trimWS(v);
-      }));
     },
     get rawBlankHeaderCount(){
       return this.rawHeaders.filter(h => trimWS(h) === '').length;
@@ -535,11 +536,7 @@ document.addEventListener('DOMContentLoaded', function(){
       });
       return Object.keys(counts).filter(k => counts[k] > 1);
     },
-    get detectedDelimiter(){
-      if (!this.originalText) return ',';
-      return detectDelimiter(firstLine(this.originalText));
-    },
-    get hadSemicolonIssue(){ return this.detectedDelimiter === ';'; },
+    get hadSemicolonIssue(){ return this.delimiter === ';'; },
     get atHeaderCount(){
       return this.headers.filter(h => h.charAt(0) === '@').length;
     },
@@ -613,12 +610,27 @@ document.addEventListener('DOMContentLoaded', function(){
     // untouched originalText, so unticking any fix actually reverts it.
     rebuild(){
       if (!this.originalText) return;
+
+      // Dragged-in files aren't restricted to .csv — a binary file (image,
+      // PDF, etc.) decodes "successfully" via the Latin-1 fallback and would
+      // otherwise sail through as garbled nonsense instead of a clear error.
+      // Real text/CSV content never contains a NUL byte.
+      if (this.originalText.indexOf('\u0000') !== -1){
+        this.parseError = "That doesn't look like a text/CSV file.";
+        this.rawHeaders = []; this.rawRows = [];
+        this.headers = []; this.rows = [];
+        this.blankRowCount = 0; this.rawHasWhitespaceIssue = false;
+        return;
+      }
+
       let text = this.originalText;
       this.hadBom = text.charCodeAt(0) === 0xFEFF;
+      this.delimiter = detectDelimiter(firstLine(this.originalText));
+      this.lineEndings = analyzeLineEndings(this.originalText);
       if (this.hadBom && this.stripBom) text = text.slice(1);
 
       try {
-        const delim = this.detectedDelimiter;
+        const delim = this.delimiter;
         const table = parseCsv(text.replace(/\r\n/g, '\n').replace(/\r/g, '\n'), delim);
         if (!table.length) throw new Error('empty file');
         const headers = table[0];
@@ -642,11 +654,18 @@ document.addEventListener('DOMContentLoaded', function(){
         });
         this.rawHeaders = headers;
         this.rawRows = objRows;
+        this.blankRowCount = objRows.filter(r => !headers.some(h => trimWS(r[h] || '') !== '')).length;
+        this.rawHasWhitespaceIssue = headers.some(h => h !== trimWS(h)) ||
+          objRows.some(r => headers.some(h => {
+            const v = r[h];
+            return typeof v === 'string' && v !== trimWS(v);
+          }));
         this.parseError = '';
       } catch (e) {
         this.parseError = 'Could not parse that as a CSV.';
         this.rawHeaders = []; this.rawRows = [];
         this.headers = []; this.rows = [];
+        this.blankRowCount = 0; this.rawHasWhitespaceIssue = false;
         return;
       }
 
@@ -693,7 +712,7 @@ document.addEventListener('DOMContentLoaded', function(){
     buildCsvText(){
       if (!this.headers.length) return '';
       const nl = this.normalizeCrlf ? '\r\n' : '\n';
-      const outDelim = (this.detectedDelimiter === ';' && this.fixSemicolon) ? ',' : this.detectedDelimiter;
+      const outDelim = (this.delimiter === ';' && this.fixSemicolon) ? ',' : this.delimiter;
       const lines = [this.headers.map(h => csvField(h, outDelim)).join(outDelim)];
       this.rows.forEach(r => lines.push(this.headers.map(h => csvField(r[h], outDelim)).join(outDelim)));
       return lines.join(nl) + nl;
