@@ -32,8 +32,8 @@
     font-family: var(--font);
     display: flex;
     flex-direction: column;
-    height: 100vh;
-    height: 100dvh; /* mobile-safe viewport height where supported */
+    min-height: 100vh;
+    min-height: 100dvh; /* mobile-safe viewport height where supported */
   }
 
   header{ border-bottom: 1px solid var(--line); flex-shrink: 0; }
@@ -72,7 +72,9 @@
     max-width: 78rem;
     margin: 0 auto;
     padding: 0.6rem 1.5rem;
+    line-height: 1.5;
   }
+  .notice-inner strong{ color: var(--ink); }
 
   /* #app gets exactly whatever's left after header + notice — no guessed
      offset, so it can never drift out of sync when either changes height. */
@@ -96,7 +98,18 @@
     flex: 1;
     min-height: 0;
   }
-  @media (max-width: 55em){ .layout{ grid-template-columns: 1fr; } }
+  @media (max-width: 55em){
+    /* The "fill remaining viewport height" trick only makes sense as a
+       single stretched column — once the grid drops to one column, both
+       panels become separate auto-sized rows and fighting over leftover
+       space gets unreliable. Fall back to plain document flow instead:
+       nothing stretched, nothing fought over, so main's own padding-bottom
+       always renders as real, guaranteed space after the buttons. */
+    #app, main, .layout{ flex: none; min-height: 0; }
+    .layout{ grid-template-columns: 1fr; }
+    .right-col{ align-self: auto; }
+    .drop-area{ flex: none; }
+  }
 
   .panel{
     border: 1px solid var(--line);
@@ -291,7 +304,7 @@
   </div>
 </header>
 <div class="notice">
-  <div class="notice-inner">Strips the invisible byte-order mark, fixes line endings and semicolon delimiters, trims stray whitespace, and cleans up blank, duplicate, and misaligned rows and headers. Everything runs locally in your browser &mdash; your file is never uploaded anywhere.</div>
+  <div class="notice-inner">Strips the invisible byte-order mark, fixes line endings and semicolon delimiters, trims stray whitespace, and cleans up blank, duplicate, and misaligned rows and headers.<br><strong>Everything runs locally in your browser.</strong> Your file is never uploaded anywhere.</div>
 </div>
 
 <div id="app">
