@@ -7,6 +7,8 @@ No signup, no server — everything runs client-side in the browser.
 
 ## Why
 
+![InDesign Data Merge Import Error](https://vumaq.github.io/csv-fixer-for-indesign-data-merge/indesign-csv-import-error.png)
+
 InDesign Data Merge is fussy about CSV formatting, and the failures are
 usually silent rather than an error message: fields quietly shift into the
 wrong column, a duplicate header collapses two fields into one, or a
@@ -39,20 +41,6 @@ dependencies to install. Drag a `.csv` onto the drop zone (or click to
 browse), review the diagnostics, untick anything you don't want changed,
 then Copy or Download the result. Long CSVs scroll inside the preview
 panel rather than growing the page.
-
-## Hosting on GitHub Pages
-
-1. Push this repo (with `index.html` at the root) to GitHub.
-2. Repo Settings → Pages → Deploy from a branch → pick `main` / root.
-3. Your tool is live at `https://<username>.github.io/<repo>/`.
-
-No build step, no `npm install` — it's one static HTML file. The only
-external dependency is [petite-vue](https://github.com/vuejs/petite-vue),
-loaded from cdnjs.
-
-Before publishing, update the GitHub icon link in the header (search for
-`github.com/vumaq/csv-fixer-for-data-merge` in `index.html`) to point at
-your actual repo.
 
 ## Privacy
 
