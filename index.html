@@ -218,10 +218,8 @@
     border: 1px solid var(--line);
     padding: 0.5rem 0.65rem;
     text-align: left;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 0; /* forces ellipsis to respect table-layout:fixed column width */
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
   }
   .csv-table th{ font-weight: 600; background: var(--bg-soft); }
   .csv-table td{ font-weight: 400; }
@@ -582,12 +580,11 @@ document.addEventListener('DOMContentLoaded', function(){
     },
     get canDownload(){ return this.headers.length > 0 && this.blockingIssues.length === 0; },
 
-    // Shows an embedded line break as a visible mark instead of silently
-    // vanishing into a nowrap/ellipsis cell — the real newline is untouched
-    // in the underlying data, only this display string is rewritten.
+    // Cells now use white-space:pre-wrap, so an embedded line break just
+    // renders as a real line break — this only needs to handle the
+    // otherwise-invisible empty-cell case.
     cellText(v){
-      v = v || '';
-      return v.replace(/\r\n|\r|\n/g, ' \u23CE ') || '\u00A0';
+      return v || '\u00A0';
     },
 
     onDrop(e){
