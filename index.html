@@ -25,18 +25,14 @@
     --titlebar-h: 2.75rem;
   }
   *{ box-sizing: border-box; }
-  html, body{ height: 100%; margin: 0; }
+  html, body{ margin: 0; }
   body{
     background: var(--bg);
     color: var(--ink);
     font-family: var(--font);
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-    min-height: 100dvh; /* mobile-safe viewport height where supported */
   }
 
-  header{ border-bottom: 1px solid var(--line); flex-shrink: 0; }
+  header{ border-bottom: 1px solid var(--line); }
   .header-inner{
     max-width: 78rem;
     margin: 0 auto;
@@ -66,7 +62,6 @@
     border-bottom: 1px solid var(--line);
     font-size: 0.82rem;
     color: var(--ink-soft);
-    flex-shrink: 0;
   }
   .notice-inner{
     max-width: 78rem;
@@ -76,40 +71,23 @@
   }
   .notice-inner strong{ color: var(--ink); }
 
-  /* #app gets exactly whatever's left after header + notice — no guessed
-     offset, so it can never drift out of sync when either changes height. */
-  #app{ flex: 1; min-height: 0; display: flex; flex-direction: column; }
   main{
     max-width: 78rem;
     width: 100%;
     margin: 0 auto;
     padding: 1.5rem 1.5rem 2rem;
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
   }
 
+  /* Same rules at every width — sizes to its own content, page scrolls
+     normally if it's taller than the viewport. No stretch-to-fill-height
+     trick to fight with. */
   .layout{
     display: grid;
     grid-template-columns: 17rem 1fr;
     gap: 1.5rem;
     align-items: start;
-    flex: 1;
-    min-height: 0;
   }
-  @media (max-width: 55em){
-    /* The "fill remaining viewport height" trick only makes sense as a
-       single stretched column — once the grid drops to one column, both
-       panels become separate auto-sized rows and fighting over leftover
-       space gets unreliable. Fall back to plain document flow instead:
-       nothing stretched, nothing fought over, so main's own padding-bottom
-       always renders as real, guaranteed space after the buttons. */
-    #app, main, .layout{ flex: none; min-height: 0; }
-    .layout{ grid-template-columns: 1fr; }
-    .right-col{ align-self: auto; }
-    .drop-area{ flex: none; }
-  }
+  @media (max-width: 55em){ .layout{ grid-template-columns: 1fr; } }
 
   .panel{
     border: 1px solid var(--line);
@@ -153,13 +131,12 @@
   .opt-text strong{ display: block; font-size: 0.85rem; font-weight: 600; }
   .opt-text span{ display: block; font-size: 0.78rem; color: var(--ink-soft); line-height: 1.4; margin-top: 0.1rem; }
 
-  /* ---- Right column: drop zone / CSV preview, fills remaining height ---- */
-  .right-col{ display: flex; flex-direction: column; min-height: 0; align-self: stretch; }
+  /* ---- Right column: drop zone / CSV preview, sizes to its own content ---- */
+  .right-col{ display: flex; flex-direction: column; }
   .drop-area{
     border: 1.5px dashed var(--line);
     border-radius: 8px;
     min-height: 22rem;
-    flex: 1;
     position: relative;
     transition: border-color .12s, background .12s;
     background-color: var(--bg);
@@ -228,7 +205,7 @@
   .badge.neutral{ background: #f1f1f1; color: #777; border-color: #d8d8d8; }
   .badge .status-icon{ font-weight: 700; font-size: 0.9rem; line-height: 1; }
 
-  .csv-preview{ margin: 0; padding: 1rem; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+  .csv-preview{ margin: 0; padding: 1rem; }
 
   .csv-table{
     border-collapse: collapse;
@@ -246,7 +223,7 @@
     text-overflow: ellipsis;
     max-width: 0; /* forces ellipsis to respect table-layout:fixed column width */
   }
-  .csv-table th{ font-weight: 600; background: var(--bg-soft); position: sticky; top: 0; }
+  .csv-table th{ font-weight: 600; background: var(--bg-soft); }
   .csv-table td{ font-weight: 400; }
   /* Lets Chromium skip layout/paint for offscreen rows without any custom
      virtualization JS — a no-op, no-risk fallback in browsers that don't
