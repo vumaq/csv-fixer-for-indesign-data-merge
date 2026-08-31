@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CSV Fixer for Data Merge</title>
-<meta name="description" content="Free tool that cleans up a CSV for InDesign Data Merge — strips the BOM, fixes line endings and semicolon delimiters, trims stray whitespace, and cleans up blank, duplicate, and misaligned rows and headers. Runs entirely in your browser, nothing is uploaded.">
+<meta name="description" content="Free tool that cleans up a CSV for InDesign Data Merge - strips the BOM, fixes line endings and semicolon delimiters, trims stray whitespace, and cleans up blank, duplicate, and misaligned rows and headers. Runs entirely in your browser, nothing is uploaded.">
 <meta name="theme-color" content="#ffffff">
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/petite-vue/0.4.1/petite-vue.iife.js" defer></script>
@@ -78,7 +78,7 @@
     padding: 1.5rem 1.5rem 2rem;
   }
 
-  /* Same rules at every width — sizes to its own content, page scrolls
+  /* Same rules at every width - sizes to its own content, page scrolls
      normally if it's taller than the viewport. No stretch-to-fill-height
      trick to fight with. */
   .layout{
@@ -224,7 +224,7 @@
   .csv-table th{ font-weight: 600; background: var(--bg-soft); }
   .csv-table td{ font-weight: 400; }
   /* Lets Chromium skip layout/paint for offscreen rows without any custom
-     virtualization JS — a no-op, no-risk fallback in browsers that don't
+     virtualization JS - a no-op, no-risk fallback in browsers that don't
      support it. Row height is uniform since cells never wrap. */
   .csv-table tbody tr{ content-visibility: auto; contain-intrinsic-size: auto 2.15rem; }
 
@@ -333,7 +333,7 @@
             <input type="checkbox" :disabled="rawBlankHeaderCount === 0" :checked="fixBlankHeaders" @change="fixBlankHeaders = $event.target.checked; applyOptions()">
             <span class="opt-text">
               <strong>Name blank columns</strong>
-              <span>Data Merge can't target a column with no header — fills in "Column N".</span>
+              <span>Data Merge can't target a column with no header - fills in "Column N".</span>
             </span>
           </label>
 
@@ -343,7 +343,7 @@
             <input type="checkbox" :disabled="rawDupHeaderNames.length === 0" :checked="fixDupHeaders" @change="fixDupHeaders = $event.target.checked; applyOptions()">
             <span class="opt-text">
               <strong>Rename duplicate columns</strong>
-              <span>Two columns with the same name merge to only one field — numbers repeats like "Name (2)".</span>
+              <span>Two columns with the same name merge to only one field - numbers repeats like "Name (2)".</span>
             </span>
           </label>
         </div>
@@ -370,37 +370,37 @@
             <div class="diagnostics">
               <span class="badge" :class="hadBom ? (stripBom ? 'good' : 'bad') : 'neutral'">
                 <span class="status-icon">{{ hadBom ? (stripBom ? '\u2713' : '\u2715') : '\u2022' }}</span>
-                {{ hadBom ? (stripBom ? 'BOM found — removed' : 'BOM found — not fixed') : 'No BOM' }}
+                {{ hadBom ? (stripBom ? 'BOM found - removed' : 'BOM found - not fixed') : 'No BOM' }}
               </span>
               <span class="badge" :class="hadSemicolonIssue ? (fixSemicolon ? 'good' : 'bad') : 'neutral'">
                 <span class="status-icon">{{ hadSemicolonIssue ? (fixSemicolon ? '\u2713' : '\u2715') : '\u2022' }}</span>
-                {{ hadSemicolonIssue ? (fixSemicolon ? 'Semicolon-delimited — converted' : 'Semicolon-delimited — not fixed') : 'Comma-delimited' }}
+                {{ hadSemicolonIssue ? (fixSemicolon ? 'Semicolon-delimited - converted' : 'Semicolon-delimited - not fixed') : 'Comma-delimited' }}
               </span>
               <span class="badge" :class="lineEndings.mixed ? (normalizeCrlf ? 'good' : 'bad') : 'neutral'">
                 <span class="status-icon">{{ lineEndings.mixed ? (normalizeCrlf ? '\u2713' : '\u2715') : '\u2022' }}</span>
                 {{ lineEndings.mixed
-                    ? (normalizeCrlf ? lineEndingSummary + ' — normalizing to CRLF' : lineEndingSummary + ' — not fixed')
+                    ? (normalizeCrlf ? lineEndingSummary + ' - normalizing to CRLF' : lineEndingSummary + ' - not fixed')
                     : 'Uniform CRLF' }}
               </span>
               <span class="badge" :class="blankRowCount ? (trimBlankRows ? 'good' : 'bad') : 'neutral'">
                 <span class="status-icon">{{ blankRowCount ? (trimBlankRows ? '\u2713' : '\u2715') : '\u2022' }}</span>
-                {{ blankRowCount ? blankRowCount + ' blank rows' + (trimBlankRows ? ' — removed' : ' — not fixed') : 'No blank rows' }}
+                {{ blankRowCount ? blankRowCount + ' blank rows' + (trimBlankRows ? ' - removed' : ' - not fixed') : 'No blank rows' }}
               </span>
               <span class="badge" :class="rawBlankHeaderCount ? (fixBlankHeaders ? 'good' : 'bad') : 'neutral'">
                 <span class="status-icon">{{ rawBlankHeaderCount ? (fixBlankHeaders ? '\u2713' : '\u2715') : '\u2022' }}</span>
-                {{ rawBlankHeaderCount ? rawBlankHeaderCount + ' blank header(s)' + (fixBlankHeaders ? ' — named' : ' — not fixed') : 'No blank headers' }}
+                {{ rawBlankHeaderCount ? rawBlankHeaderCount + ' blank header(s)' + (fixBlankHeaders ? ' - named' : ' - not fixed') : 'No blank headers' }}
               </span>
               <span class="badge" :class="rawDupHeaderNames.length ? (fixDupHeaders ? 'good' : 'bad') : 'neutral'">
                 <span class="status-icon">{{ rawDupHeaderNames.length ? (fixDupHeaders ? '\u2713' : '\u2715') : '\u2022' }}</span>
-                {{ rawDupHeaderNames.length ? 'Duplicate header(s)' + (fixDupHeaders ? ' — renamed' : ' — not fixed') : 'No duplicate headers' }}
+                {{ rawDupHeaderNames.length ? 'Duplicate header(s)' + (fixDupHeaders ? ' - renamed' : ' - not fixed') : 'No duplicate headers' }}
               </span>
               <span class="badge" :class="raggedRowCount ? 'good' : 'neutral'">
                 <span class="status-icon">{{ raggedRowCount ? '\u2713' : '\u2022' }}</span>
-                {{ raggedRowCount ? raggedRowCount + ' row(s) had the wrong field count — auto-aligned to headers' : 'All rows match the header count' }}
+                {{ raggedRowCount ? raggedRowCount + ' row(s) had the wrong field count - auto-aligned to headers' : 'All rows match the header count' }}
               </span>
               <span class="badge neutral" v-if="atHeaderCount">
                 <span class="status-icon">{{ '\u2022' }}</span>
-                {{ atHeaderCount }} column(s) start with "@" — Data Merge treats these as image fields, not text
+                {{ atHeaderCount }} column(s) start with "@" - Data Merge treats these as image fields, not text
               </span>
             </div>
             <div class="csv-preview"><table class="csv-table"><thead><tr><th v-for="h in headers" :key="h">{{ h }}</th></tr></thead><tbody><tr v-for="(r, i) in rows" :key="i"><td v-for="h in headers" :key="h">{{ cellText(r[h]) }}</td></tr></tbody></table></div>
@@ -451,7 +451,7 @@ document.addEventListener('DOMContentLoaded', function(){
     return v;
   }
 
-  // Common non-comma export from European-locale Excel — count top-level
+  // Common non-comma export from European-locale Excel - count top-level
   // (unquoted) commas vs semicolons on the header line only.
   function firstLine(text){
     const idx = text.search(/\r\n|\r|\n/);
@@ -474,7 +474,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
   // Scans the whole file once for its line-ending mix. Previously this ran
   // as a getter re-executed on every template read (badge color, badge
-  // text, disabled state, blocking check — 5+ reads per render), rescanning
+  // text, disabled state, blocking check - 5+ reads per render), rescanning
   // the entire file each time. Now called once per rebuild() instead.
   function analyzeLineEndings(text){
     let crlf = 0, lf = 0, cr = 0;
@@ -491,7 +491,7 @@ document.addEventListener('DOMContentLoaded', function(){
   // A trim that deliberately does NOT strip U+FEFF (the BOM character).
   // Native String.trim() treats \uFEFF as whitespace, which meant the
   // "Trim stray whitespace" fix would silently eat a BOM the "Strip UTF-8
-  // BOM" checkbox had been unticked to preserve — the two fixes need to
+  // BOM" checkbox had been unticked to preserve - the two fixes need to
   // stay fully independent of each other.
   const WS = /[ \t\n\r\v\f\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]/;
   function trimWS(s){
@@ -581,7 +581,7 @@ document.addEventListener('DOMContentLoaded', function(){
     get canDownload(){ return this.headers.length > 0 && this.blockingIssues.length === 0; },
 
     // Cells now use white-space:pre-wrap, so an embedded line break just
-    // renders as a real line break — this only needs to handle the
+    // renders as a real line break - this only needs to handle the
     // otherwise-invisible empty-cell case.
     cellText(v){
       return v || '\u00A0';
@@ -607,7 +607,7 @@ document.addEventListener('DOMContentLoaded', function(){
     },
 
     // Decodes with the BOM character kept in the string (if present) so
-    // the "Strip UTF-8 BOM" checkbox has something real to toggle later —
+    // the "Strip UTF-8 BOM" checkbox has something real to toggle later -
     // stripping happens in rebuild(), not here.
     loadFromArrayBuffer(buf){
       const bytes = new Uint8Array(buf);
@@ -626,7 +626,7 @@ document.addEventListener('DOMContentLoaded', function(){
     rebuild(){
       if (!this.originalText) return;
 
-      // Dragged-in files aren't restricted to .csv — a binary file (image,
+      // Dragged-in files aren't restricted to .csv - a binary file (image,
       // PDF, etc.) decodes "successfully" via the Latin-1 fallback and would
       // otherwise sail through as garbled nonsense instead of a clear error.
       // Real text/CSV content never contains a NUL byte.
@@ -651,7 +651,7 @@ document.addEventListener('DOMContentLoaded', function(){
         const headers = table[0];
         let dataRows = table.slice(1);
         // Drop only a single trailing artifact row caused by a final
-        // newline at EOF — real blank rows elsewhere in the file are kept
+        // newline at EOF - real blank rows elsewhere in the file are kept
         // so the "Drop blank rows" checkbox has something to act on.
         if (dataRows.length){
           const last = dataRows[dataRows.length - 1];
@@ -660,7 +660,7 @@ document.addEventListener('DOMContentLoaded', function(){
         // Rows with more/fewer fields than the header row shift every
         // value after the mismatch into the wrong column. We normalize
         // them (pad short rows, drop extra trailing fields) automatically
-        // since there's no safe "unfixed" state to preview — just flag it.
+        // since there's no safe "unfixed" state to preview - just flag it.
         this.raggedRowCount = dataRows.filter(r => r.length !== headers.length).length;
         const objRows = dataRows.map(r => {
           const o = {};
@@ -688,7 +688,7 @@ document.addEventListener('DOMContentLoaded', function(){
     },
 
     // Applies every column/row-level fix on top of the freshly re-parsed
-    // raw data — always starts clean from rawHeaders/rawRows.
+    // raw data - always starts clean from rawHeaders/rawRows.
     applyOptions(){
       if (!this.rawHeaders.length) return;
 
@@ -756,7 +756,7 @@ document.addEventListener('DOMContentLoaded', function(){
         await navigator.clipboard.writeText(this.buildCsvText());
         this.copied = true;
         setTimeout(() => { this.copied = false; }, 1500);
-      } catch (e) { /* clipboard unavailable — silently ignore */ }
+      } catch (e) { /* clipboard unavailable - silently ignore */ }
     },
 
   }).mount('#app');
