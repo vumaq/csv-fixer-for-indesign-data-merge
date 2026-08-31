@@ -444,10 +444,18 @@ document.addEventListener('DOMContentLoaded', function(){
     return rows;
   }
 
-  function csvField(v, delim){
+  function csvField(v, delim, nl){
     v = v == null ? '' : String(v);
     const special = new RegExp('["' + delim + '\\n]');
-    if (special.test(v)) return '"' + v.replace(/"/g, '""') + '"';
+    if (special.test(v)){
+      // A value's own internal line break (from a genuinely multi-line
+      // quoted field) was normalized to bare \n during parsing along with
+      // every row separator, but never got converted back - normalize it
+      // to the SAME line-ending style chosen for the rest of the file, or
+      // the output ends up with a real, re-detectable CRLF/LF mismatch.
+      const normalized = v.replace(/\r\n|\r|\n/g, nl);
+      return '"' + normalized.replace(/"/g, '""') + '"';
+    }
     return v;
   }
 
@@ -607,7 +615,7 @@ document.addEventListener('DOMContentLoaded', function(){
     },
 
     // Decodes with the BOM character kept in the string (if present) so
-    // the "Strip UTF-8 BOM" checkbox has something real to toggle later -
+    // the "Strip UTF-8 BOM" checkbox has something real to toggle later  - 
     // stripping happens in rebuild(), not here.
     loadFromArrayBuffer(buf){
       const bytes = new Uint8Array(buf);
@@ -728,8 +736,8 @@ document.addEventListener('DOMContentLoaded', function(){
       if (!this.headers.length) return '';
       const nl = this.normalizeCrlf ? '\r\n' : '\n';
       const outDelim = (this.delimiter === ';' && this.fixSemicolon) ? ',' : this.delimiter;
-      const lines = [this.headers.map(h => csvField(h, outDelim)).join(outDelim)];
-      this.rows.forEach(r => lines.push(this.headers.map(h => csvField(r[h], outDelim)).join(outDelim)));
+      const lines = [this.headers.map(h => csvField(h, outDelim, nl)).join(outDelim)];
+      this.rows.forEach(r => lines.push(this.headers.map(h => csvField(r[h], outDelim, nl)).join(outDelim)));
       return lines.join(nl) + nl;
     },
 
